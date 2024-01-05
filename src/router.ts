@@ -1,5 +1,5 @@
 import { Dataset, createPlaywrightRouter } from 'crawlee';
-import { extractDate, extractFormat, extractIDs, getFrameSelector } from './helper';
+import { extractDate, extractFormat, extractIDs } from './helper.js';
 
 export enum HandlerLabel {
   ADS_DETAIL = 'ADS_DETAIL',
@@ -37,7 +37,7 @@ export enum AdFormat {
 
 export const router = createPlaywrightRouter();
 
-router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
+router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request }) => {
   const { advertiserID, creativeID } = extractIDs(request.url);
 
   await page.waitForSelector('.advertiser-name > a');
@@ -76,11 +76,9 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
 
     const frame = await iframe.contentFrame();
     // get click url
-    const clickLinks = await frame?.$$('a').then((els) => Promise.all(els.map((el) => el.getAttribute('href')))) || [];
+    const clickUrls = await frame?.$$('a').then((els) => Promise.all(els.map((el) => el.getAttribute('href')))) || [];
     // get image url
-    const imageLinks = await frame?.$$('img').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
-    // get video url
-    const videoLinks = await frame?.$$('video').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
+    const imageUrls = await frame?.$$('img').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
     // get all background image url
     const bgImages = await frame?.$$('.cropped-image-no-overflow-box')
       .then((els) => Promise.all(
@@ -95,7 +93,18 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
       );
 
     if (bgImages) {
-      imageLinks.push(...bgImages);
+      imageUrls.push(...bgImages);
+    }
+
+    // video
+    const videoUrls: string[] = [];
+    if (format === AdFormat.VIDEO) {
+      // wait for video loaded in network. url start with: https://r2---sn , end with file/file.mp4
+      // const responsePromise = page.waitForResponse(/https:\/\/r2---sn.*file\/file\.mp4/);
+      // const response = await responsePromise;
+      // log.debug(`Video response: ${response.url()}`);
+      // sleep(1000);
+      await page.waitForTimeout(100000);
     }
 
     if (await page.isVisible('.right-arrow-container')) {
@@ -105,9 +114,9 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
     variants.push({
       iframeUrl,
       screenshot,
-      clickUrls: clickLinks.filter((link) => !!link) as string[],
-      imageUrls: imageLinks.filter((link) => !!link) as string[],
-      videoUrls: videoLinks.filter((link) => !!link) as string[],
+      clickUrls: clickUrls.filter((link) => !!link) as string[],
+      imageUrls: imageUrls.filter((link) => !!link) as string[],
+      videoUrls: videoUrls,
     });
   }
 
@@ -128,7 +137,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   await Dataset.pushData(creative);
 });
 
-router.addDefaultHandler(async ({ request, page, enqueueLinks, log }) => {
+router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {
   await page.waitForSelector('.search-input-searchable-center');
 
   // Get the search input element.

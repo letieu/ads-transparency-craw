@@ -2,7 +2,7 @@ import { LaunchOptions } from "playwright";
 
 export const playwrightLaunchOptions: LaunchOptions = {
   args: [
-    '--no-sandbox',
+    // '--no-sandbox',
     '--disable-infobars',
     '--window-position=0,0',
     '--ignore-certifcate-errors',

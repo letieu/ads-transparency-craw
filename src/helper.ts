@@ -1,5 +1,5 @@
 import { ElementHandle, Frame } from "playwright";
-import { AdFormat } from "./router";
+import { AdFormat } from "./router.js";
 
 const advertiserRegex = /advertiser\/([A-Z0-9]+)/;
 const creativeRegex = /creative\/([A-Z0-9]+)/;
