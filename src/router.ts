@@ -37,7 +37,7 @@ export enum AdFormat {
 
 export const router = createPlaywrightRouter();
 
-router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request }) => {
+router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   const { advertiserID, creativeID } = extractIDs(request.url);
 
   await page.waitForSelector('.advertiser-name > a');
@@ -63,10 +63,23 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request }) => {
   let variants: CreativeVariants[] = [];
 
   // wait iframe loaded
-  await page.waitForSelector('.creative-container creative > .creative-container iframe');
-  const iframes = await page.$$('.creative-container creative > .creative-container iframe')
+  await page.waitForSelector('.creative-container creative > .creative-container fletch-renderer');
+  const iframesWrapper = await page.$$('.creative-container creative > .creative-container fletch-renderer')
 
-  for await (const iframe of iframes) {
+  for await (const wrapper of iframesWrapper) {
+    log.debug('iframe loading...');
+    // wait iframe loaded
+    await wrapper.waitForSelector('iframe').catch(() => {
+      log.error('iframe not found');
+    });
+
+    log.debug('iframe loaded');
+    const iframe = await wrapper.$('iframe');
+    log.debug('iframe found');
+
+    if (!iframe) {
+      continue;
+    }
     // get iframe link
     const iframeUrl = await iframe.getAttribute('src') || '';
 
@@ -80,7 +93,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request }) => {
     // get image url
     const imageUrls = await frame?.$$('img').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
     // get all background image url
-    const bgImages = await frame?.$$('.cropped-image-no-overflow-box')
+    const bgImages = await frame?.$$('.cropped-image-no-overflow-box, .thumb-overlay')
       .then((els) => Promise.all(
         els.map((el) => {
           return el.evaluate((el) => {
@@ -97,15 +110,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request }) => {
     }
 
     // video
-    const videoUrls: string[] = [];
-    if (format === AdFormat.VIDEO) {
-      // wait for video loaded in network. url start with: https://r2---sn , end with file/file.mp4
-      // const responsePromise = page.waitForResponse(/https:\/\/r2---sn.*file\/file\.mp4/);
-      // const response = await responsePromise;
-      // log.debug(`Video response: ${response.url()}`);
-      // sleep(1000);
-      await page.waitForTimeout(100000);
-    }
+    const videoUrls = await frame?.$$('lima-video').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
 
     if (await page.isVisible('.right-arrow-container')) {
       await page.click('.right-arrow-container');
@@ -116,7 +121,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request }) => {
       screenshot,
       clickUrls: clickUrls.filter((link) => !!link) as string[],
       imageUrls: imageUrls.filter((link) => !!link) as string[],
-      videoUrls: videoUrls,
+      videoUrls: videoUrls.filter((link) => !!link) as string[],
     });
   }
 
@@ -138,8 +143,13 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request }) => {
 });
 
 router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {
-  await page.waitForSelector('.search-input-searchable-center');
+  const urlQuery = new URL(page.url()).searchParams;
+  const domain = urlQuery.get('domain');
+  if (!domain) {
+    throw new Error('Domain not found');
+  }
 
+  await page.waitForSelector('.search-input-searchable-center');
   // Get the search input element.
   const searchInput = await page.$('.search-input-searchable-center input');
 
@@ -148,7 +158,7 @@ router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {
   }
 
   // Type the search query.
-  await searchInput.type('tiki.vn');
+  await searchInput.type(domain);
 
   // wait for suggestions to appear.
   await page.waitForSelector('.search-suggestions-wrapper');
