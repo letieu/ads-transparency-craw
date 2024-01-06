@@ -1,6 +1,6 @@
 import { ElementHandle, Frame, Page } from "playwright";
 import { AdFormat } from "./router.js";
-import { Log, log } from "crawlee";
+import { log } from "crawlee";
 
 const advertiserRegex = /advertiser\/([A-Z0-9]+)/;
 const creativeRegex = /creative\/([A-Z0-9]+)/;
@@ -23,15 +23,6 @@ export function extractIDs(url: string) {
     return { advertiserID, creativeID };
   } else {
     return { advertiserID: '', creativeID: '' };
-  }
-}
-
-export function extractDetailQuery(url: string) {
-  const searchParams = new URL(url).searchParams;
-  const format = searchParams.get('format');
-  return {
-    format: format ? stringToAdFormat(format) : null,
-    domain: searchParams.get('domain'),
   }
 }
 
@@ -78,26 +69,6 @@ export function extractDate(text: string): Date {
 
   const date = new Date(dateString?.trim() || '');
   return date;
-}
-
-export function isAdFrame(frame: Frame) {
-  const url = frame.url();
-  return url.startsWith('https://tpc.googlesyndication.com/archive/sadbundle')
-    || url.startsWith('https://adstransparency.google.com/adframe');
-}
-
-export async function getFrameSelector(el: ElementHandle) {
-  const id = await el.getAttribute('id');
-  if (id) {
-    return `#${id}`;
-  }
-
-  const src = await el.getAttribute('src');
-  if (src) {
-    return `iframe[src="${src}"]`;
-  }
-
-  return null;
 }
 
 export async function getVariantFromFrame(wrapper: ElementHandle) {
@@ -211,7 +182,6 @@ export async function getFrameContentRecursive(frame: Frame | null) {
   }
 }
 
-// none frame
 export async function getVariantFromElement(el: ElementHandle) {
   // take screenshot of Element
   const base64 = (await el.screenshot()).toString('base64');
@@ -250,17 +220,6 @@ export async function getVariantFromElement(el: ElementHandle) {
     clickUrls: clickUrls.filter((link) => !!link) as string[],
     imageUrls: imageUrls.filter((link) => !!link) as string[],
     videoUrls: videoUrls.filter((link) => !!link) as string[],
-  }
-}
-
-// dump frame tree
-export function dumpFrameTree(frame: Frame, indent: string) {
-  const url = frame.url();
-  if (url?.includes('about:')) {
-    return;
-  }
-  for (const child of frame.childFrames()) {
-    dumpFrameTree(child, indent + '  ');
   }
 }
 
