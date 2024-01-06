@@ -1,5 +1,6 @@
 import { Dataset, createPlaywrightRouter } from 'crawlee';
 import { extractDate, extractFormat, extractIDs, getVariantFromElement, getVariantFromFrame } from './helper.js';
+import { DB } from './database.js';
 
 export enum HandlerLabel {
   ADS_DETAIL = 'ADS_DETAIL',
@@ -103,7 +104,8 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
     regions: regionsText?.map((text) => text?.trim() ?? '') || [],
   };
 
-  await Dataset.pushData(creative); // TODO: move to mysql
+  // await Dataset.pushData(creative);
+  await DB.saveCreative(creative);
 });
 
 router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {
