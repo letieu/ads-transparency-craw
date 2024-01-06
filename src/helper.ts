@@ -100,17 +100,17 @@ export async function getFrameSelector(el: ElementHandle) {
   return null;
 }
 
-export async function getFrameContent(wrapper: ElementHandle, log: Log) {
+export async function getVariantFromFrame(wrapper: ElementHandle) {
   // wait iframe loaded
-  await wrapper.waitForSelector('iframe').catch(() => {
+  await wrapper.waitForSelector('iframe', { timeout: 2000 }).catch(() => {
     log.error('iframe not found');
   });
 
   const iframe = await wrapper.$('iframe');
-
   if (!iframe) {
-    return null;
+    throw new Error('iframe not found after wait');
   }
+
   // get iframe link
   const iframeUrl = await iframe.getAttribute('src') || '';
 
@@ -122,17 +122,14 @@ export async function getFrameContent(wrapper: ElementHandle, log: Log) {
   let frame = await iframe.contentFrame();
 
   // get click url
-  const { clickUrls, imageUrls } = await getFrameContentRecursive(frame);
-
-  // video
-  // const videoUrls = await frame?.$$('lima-video').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
+  const { clickUrls, imageUrls, videoUrls } = await getFrameContentRecursive(frame);
 
   return {
     iframeUrl,
     screenshot,
     clickUrls: clickUrls.filter((link) => !!link) as string[],
     imageUrls: imageUrls.filter((link) => !!link) as string[],
-    videoUrls: ['asdf']
+    videoUrls: videoUrls.filter((link) => !!link) as string[],
   }
 }
 
@@ -141,8 +138,19 @@ export async function getFrameContentRecursive(frame: Frame | null) {
     return {
       clickUrls: [],
       imageUrls: [],
+      videoUrls: [],
     }
   }
+
+  log.debug(`frame url: ${frame.url()}`);
+  if (isYoutubeFrame(frame)) {
+    return {
+      clickUrls: [],
+      imageUrls: [],
+      videoUrls: [frame.url()],
+    }
+  }
+
   // click url
   const clickUrls = await frame?.$$('a').then((els) => Promise.all(els.map((el) => el.getAttribute('href')))) || [];
 
@@ -165,6 +173,26 @@ export async function getFrameContentRecursive(frame: Frame | null) {
     imageUrls.push(...bgImages);
   }
 
+  // video urls
+  const videoUrls = await frame.evaluate(() => {
+    const videos = document.querySelectorAll('video');
+    const videoUrls = [];
+    for (const video of videos) {
+      const src = video.getAttribute('src');
+      if (src) {
+        videoUrls.push(src);
+      } else {
+        const sources = video.querySelectorAll('source');
+        for (const source of sources) {
+          const src = source.getAttribute('src');
+          if (src) {
+            videoUrls.push(src);
+          }
+        }
+      }
+    }
+    return videoUrls;
+  });
 
   const childFrames = frame.childFrames();
   if (childFrames.length > 0) {
@@ -172,12 +200,56 @@ export async function getFrameContentRecursive(frame: Frame | null) {
       const result = await getFrameContentRecursive(child);
       clickUrls.push(...result.clickUrls);
       imageUrls.push(...result.imageUrls);
+      videoUrls.push(...result.videoUrls);
     }
   }
 
   return {
     clickUrls: clickUrls.filter((link) => !!link) as string[],
     imageUrls: imageUrls.filter((link) => !!link) as string[],
+    videoUrls: videoUrls.filter((link) => !!link) as string[],
+  }
+}
+
+// none frame
+export async function getVariantFromElement(el: ElementHandle) {
+  // take screenshot of Element
+  const base64 = (await el.screenshot()).toString('base64');
+  const screenshot = `data:image/png;base64,${base64}`;
+
+  // get click url
+  const clickUrls = await el.$$('a').then((els) => Promise.all(els.map((el) => el.getAttribute('href')))) || [];
+
+  // get image url
+  const imageUrls = await el.$$('img').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
+
+  // get video url
+  const videoUrls = await el.evaluate(() => {
+    const videos = document.querySelectorAll('video');
+    const videoUrls = [];
+    for (const video of videos) {
+      const src = video.getAttribute('src');
+      if (src) {
+        videoUrls.push(src);
+      } else {
+        const sources = video.querySelectorAll('source');
+        for (const source of sources) {
+          const src = source.getAttribute('src');
+          if (src) {
+            videoUrls.push(src);
+          }
+        }
+      }
+    }
+    return videoUrls;
+  });
+
+  return {
+    iframeUrl: '',
+    screenshot,
+    clickUrls: clickUrls.filter((link) => !!link) as string[],
+    imageUrls: imageUrls.filter((link) => !!link) as string[],
+    videoUrls: videoUrls.filter((link) => !!link) as string[],
   }
 }
 
@@ -187,8 +259,12 @@ export function dumpFrameTree(frame: Frame, indent: string) {
   if (url?.includes('about:')) {
     return;
   }
-  log.info(`${indent}${frame.name()}`);
   for (const child of frame.childFrames()) {
     dumpFrameTree(child, indent + '  ');
   }
+}
+
+function isYoutubeFrame(frame: Frame) {
+  const url = frame.url();
+  return url.includes('youtube.com/embed');
 }

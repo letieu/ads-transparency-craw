@@ -1,6 +1,5 @@
 import { Dataset, createPlaywrightRouter } from 'crawlee';
-import { dumpFrameTree, extractDate, extractFormat, extractIDs, getFrameContent } from './helper.js';
-import { Frame } from 'playwright';
+import { extractDate, extractFormat, extractIDs, getVariantFromElement, getVariantFromFrame } from './helper.js';
 
 export enum HandlerLabel {
   ADS_DETAIL = 'ADS_DETAIL',
@@ -11,7 +10,6 @@ export type Creative = {
   link: string;
   format: AdFormat;
   lastShow: Date;
-  previewUrl: string;
   advertiser: Advertiser;
   variants: CreativeVariants[];
   regions: string[];
@@ -44,6 +42,9 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   // wait for network idle
   await page.waitForLoadState('networkidle');
 
+  // wait for loading-pulse disappear
+  await page.waitForSelector('.loading-pulse', { state: 'detached', timeout: 5000 });
+
   await page.waitForSelector('.advertiser-name > a');
 
   //1. get advertiser name
@@ -66,25 +67,27 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   //4. get variants
   let variants: CreativeVariants[] = [];
 
-  // wait iframe loaded
-  await page.waitForSelector('creative.has-variation iframe', { timeout: 2000 })
-  const iframesWrapper = await page.$$('creative.has-variation');
+  const variantElements = await page.$$('creative.has-variation');
 
-  log.debug(`iframe count: ${iframesWrapper.length}`);
+  log.debug(`variant count: ${variantElements.length}`);
 
-  log.info('frame tree:');
-  dumpFrameTree(page.mainFrame(), "");
+  for await (const wrapper of variantElements) {
+    // check if this variant is iframe
+    const isIframe = !!(await wrapper.$('iframe'));
 
-  for await (const wrapper of iframesWrapper) {
-    const variant = await getFrameContent(wrapper, log);
+    let variant: CreativeVariants;
+
+    if (isIframe) {
+      variant = await getVariantFromFrame(wrapper);
+    } else {
+      variant = await getVariantFromElement(wrapper);
+    }
 
     if (await page.isVisible('.right-arrow-container')) {
       await page.click('.right-arrow-container');
     }
 
-    if (variant) {
-      variants.push(variant);
-    }
+    variants.push(variant);
   }
 
   const creative: Creative = {
@@ -92,7 +95,6 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
     link: request.url,
     format,
     lastShow,
-    previewUrl: '',
     advertiser: {
       id: advertiserID,
       name: advertiserName,
