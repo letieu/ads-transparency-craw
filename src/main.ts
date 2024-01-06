@@ -1,14 +1,15 @@
-import { PlaywrightCrawler } from 'crawlee';
+import { Configuration, PlaywrightCrawler, PlaywrightCrawlerOptions, purgeDefaultStorages } from 'crawlee';
 import { router } from './router.js';
 import { addLangToQuery, setViewport } from './hook.js';
 import { playwrightLaunchOptions } from './launch-option.js';
 import express from 'express';
 import bodyParser from 'body-parser';
+import { MemoryStorage } from '@crawlee/memory-storage'
+import fs from 'fs';
 
-const crawler = new PlaywrightCrawler({
-  keepAlive: true,
+const options: PlaywrightCrawlerOptions = {
   requestHandler: router,
-  maxRequestsPerCrawl: 100, // just for clean up, it will restart after 100 requests
+  maxRequestsPerCrawl: 30,
   maxRequestRetries: 3,
   maxRequestsPerMinute: 5,
   headless: false,
@@ -19,19 +20,8 @@ const crawler = new PlaywrightCrawler({
     addLangToQuery,
     setViewport,
   ],
-});
+}
 
-// Add first URL to the queue and start the crawl.
-// crawler.run(['https://adstransparency.google.com/?region=VN&format=VIDEO&domain=tiki.vn']);
-// crawler.run(['https://adstransparency.google.com/?region=VN&format=IMAGE&domain=tiki.vn']);
-
-// await crawler.run([{
-//   url: 'https://adstransparency.google.com/advertiser/AR04357315858767282177/creative/CR03594951570225102849?authuser=0&region=VN&format=IMAGE',
-//   // url: 'https://adstransparency.google.com/advertiser/AR06152299239998226433/creative/CR02535221372653666305?region=VN',
-//   label: HandlerLabel.ADS_DETAIL,
-// }]);
-
-// create an endpoint to start the crawl
 const server = express();
 server.use(bodyParser.json())
 
@@ -51,29 +41,34 @@ server.post('/crawl', async (req, res) => {
 
     const url = `https://adstransparency.google.com/?region=${region}&format=${format}&domain=${domain}`;
 
-    // if not running, start the crawler
-    console.log('Crawler is running: ', crawler.running);
-    if (!crawler.running) {
-      crawler.run([url]);
-    } else {
-      crawler.addRequests([url]);
-    }
+    const localDataDirectory = `./storage/${region}-${format}-${domain}-${Date.now()}`;
 
-    res.send('Crawling started with url: ' + url);
+    const storageClient = new MemoryStorage({
+      localDataDirectory: localDataDirectory,
+    });
+    const config: Configuration = new Configuration({
+      storageClient,
+    });
+
+    const crawler = new PlaywrightCrawler(options, config);
+    await crawler.run([url]);
+    // remove storage after crawl
+    await storageClient.purge();
+    // remove folder after purge
+    fs.rmdirSync(localDataDirectory, { recursive: true });
+
+    res.status(200).json(crawler.stats);
   } catch (error) {
     console.log(error);
     res.status(500).send(error);
   }
 });
 
-server.get('/stats', (_, res) => {
-  res.json(crawler.stats);
-});
-
 server.listen(3000);
-console.log('Server is listening on port 3000');
 
 process.on('SIGINT', function () {
   console.log("\nGracefully shutting down from SIGINT (Ctrl-C)");
   process.exit(0);
 });
+
+console.log('Server is listening on port 3000');

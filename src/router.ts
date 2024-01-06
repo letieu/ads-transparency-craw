@@ -103,7 +103,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
     regions: regionsText?.map((text) => text?.trim() ?? '') || [],
   };
 
-  await Dataset.pushData(creative);
+  await Dataset.pushData(creative); // TODO: move to mysql
 });
 
 router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {
