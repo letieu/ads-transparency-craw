@@ -52,10 +52,11 @@ server.post('/crawl', async (req, res) => {
 
     const crawler = new PlaywrightCrawler(options, config);
     await crawler.run([url]);
+
     // remove storage after crawl
     await storageClient.purge();
     // remove folder after purge
-    fs.rmdirSync(localDataDirectory, { recursive: true });
+    fs.rmSync(localDataDirectory, { recursive: true });
 
     res.status(200).json(crawler.stats);
   } catch (error) {

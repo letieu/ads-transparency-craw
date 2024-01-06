@@ -147,6 +147,18 @@ router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {
   await page.waitForSelector('creative-grid');
   await page.waitForSelector('creative-preview > a');
 
+  // add &domain=example.com to all links
+  await page.evaluate(() => {
+    const domain = new URL(window.location.href).searchParams.get('domain');
+    const links = document.querySelectorAll('creative-preview > a');
+    for (const link of links) {
+      let href = link.getAttribute('href');
+      if (!href) return;
+      href += `&domain=${domain}`;
+      link.setAttribute('href', href);
+    }
+  });
+
   await enqueueLinks({
     selector: 'creative-preview > a',
     label: HandlerLabel.ADS_DETAIL,
