@@ -5,6 +5,13 @@ export const addLangToQuery: PlaywrightHook = async ({ request }) => {
   request.url = _addLangToUrl(request.url);
 }
 
+export const setViewport: PlaywrightHook = async ({ page }) => {
+  await page.setViewportSize({
+    width: 1350,
+    height: 1000,
+  });
+}
+
 function _addLangToUrl(url: string) {
   const urlObj = new URL(url);
   if (!urlObj.searchParams.get('hl')) {

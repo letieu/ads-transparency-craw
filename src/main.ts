@@ -1,6 +1,6 @@
 import { PlaywrightCrawler } from 'crawlee';
 import { HandlerLabel, router } from './router.js';
-import { addLangToQuery } from './hook.js';
+import { addLangToQuery, setViewport } from './hook.js';
 import { playwrightLaunchOptions } from './launch-option.js';
 
 const crawler = new PlaywrightCrawler({
@@ -11,7 +11,8 @@ const crawler = new PlaywrightCrawler({
     launchOptions: playwrightLaunchOptions,
   },
   preNavigationHooks: [
-    addLangToQuery
+    addLangToQuery,
+    setViewport,
   ],
 });
 
@@ -19,6 +20,6 @@ const crawler = new PlaywrightCrawler({
 // await crawler.run(['https://adstransparency.google.com/?region=VN&format=VIDEO&domain=tiki.vn']);
 
 await crawler.run([{
-  url: 'https://adstransparency.google.com/advertiser/AR06152299239998226433/creative/CR11490653420935708673?region=VN&format=VIDEO&hl=en',
+  url: 'https://adstransparency.google.com/advertiser/AR06152299239998226433/creative/CR03481908580750196737?region=VN&format=TEXT',
   label: HandlerLabel.ADS_DETAIL,
 }]);

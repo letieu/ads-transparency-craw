@@ -1,5 +1,6 @@
 import { Dataset, createPlaywrightRouter } from 'crawlee';
-import { extractDate, extractFormat, extractIDs } from './helper.js';
+import { dumpFrameTree, extractDate, extractFormat, extractIDs, getFrameContent } from './helper.js';
+import { Frame } from 'playwright';
 
 export enum HandlerLabel {
   ADS_DETAIL = 'ADS_DETAIL',
@@ -40,6 +41,9 @@ export const router = createPlaywrightRouter();
 router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   const { advertiserID, creativeID } = extractIDs(request.url);
 
+  // wait for network idle
+  await page.waitForLoadState('networkidle');
+
   await page.waitForSelector('.advertiser-name > a');
 
   //1. get advertiser name
@@ -63,66 +67,24 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   let variants: CreativeVariants[] = [];
 
   // wait iframe loaded
-  await page.waitForSelector('.creative-container creative > .creative-container fletch-renderer');
-  const iframesWrapper = await page.$$('.creative-container creative > .creative-container fletch-renderer')
+  await page.waitForSelector('creative.has-variation iframe', { timeout: 2000 })
+  const iframesWrapper = await page.$$('creative.has-variation');
+
+  log.debug(`iframe count: ${iframesWrapper.length}`);
+
+  log.info('frame tree:');
+  dumpFrameTree(page.mainFrame(), "");
 
   for await (const wrapper of iframesWrapper) {
-    log.debug('iframe loading...');
-    // wait iframe loaded
-    await wrapper.waitForSelector('iframe').catch(() => {
-      log.error('iframe not found');
-    });
-
-    log.debug('iframe loaded');
-    const iframe = await wrapper.$('iframe');
-    log.debug('iframe found');
-
-    if (!iframe) {
-      continue;
-    }
-    // get iframe link
-    const iframeUrl = await iframe.getAttribute('src') || '';
-
-    // take screenshot of iframe
-    const base64 = (await iframe.screenshot()).toString('base64');
-    const screenshot = `data:image/png;base64,${base64}`;
-
-    const frame = await iframe.contentFrame();
-    // get click url
-    const clickUrls = await frame?.$$('a').then((els) => Promise.all(els.map((el) => el.getAttribute('href')))) || [];
-    // get image url
-    const imageUrls = await frame?.$$('img').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
-    // get all background image url
-    const bgImages = await frame?.$$('.cropped-image-no-overflow-box, .thumb-overlay')
-      .then((els) => Promise.all(
-        els.map((el) => {
-          return el.evaluate((el) => {
-            const style = window.getComputedStyle(el);
-            const background = style.backgroundImage;
-            const url = background.replace(/url\((['"])?(.*?)\1\)/gi, '$2').split(',')[0];
-            return url;
-          });
-        }))
-      );
-
-    if (bgImages) {
-      imageUrls.push(...bgImages);
-    }
-
-    // video
-    const videoUrls = await frame?.$$('lima-video').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
+    const variant = await getFrameContent(wrapper, log);
 
     if (await page.isVisible('.right-arrow-container')) {
       await page.click('.right-arrow-container');
     }
 
-    variants.push({
-      iframeUrl,
-      screenshot,
-      clickUrls: clickUrls.filter((link) => !!link) as string[],
-      imageUrls: imageUrls.filter((link) => !!link) as string[],
-      videoUrls: videoUrls.filter((link) => !!link) as string[],
-    });
+    if (variant) {
+      variants.push(variant);
+    }
   }
 
   const creative: Creative = {

@@ -1,5 +1,6 @@
-import { ElementHandle, Frame } from "playwright";
+import { ElementHandle, Frame, Page } from "playwright";
 import { AdFormat } from "./router.js";
+import { Log, log } from "crawlee";
 
 const advertiserRegex = /advertiser\/([A-Z0-9]+)/;
 const creativeRegex = /creative\/([A-Z0-9]+)/;
@@ -97,4 +98,97 @@ export async function getFrameSelector(el: ElementHandle) {
   }
 
   return null;
+}
+
+export async function getFrameContent(wrapper: ElementHandle, log: Log) {
+  // wait iframe loaded
+  await wrapper.waitForSelector('iframe').catch(() => {
+    log.error('iframe not found');
+  });
+
+  const iframe = await wrapper.$('iframe');
+
+  if (!iframe) {
+    return null;
+  }
+  // get iframe link
+  const iframeUrl = await iframe.getAttribute('src') || '';
+
+  // take screenshot of iframe
+  const base64 = (await iframe.screenshot()).toString('base64');
+  const screenshot = `data:image/png;base64,${base64}`;
+
+  await iframe.waitForElementState('stable');
+  let frame = await iframe.contentFrame();
+
+  // get click url
+  const { clickUrls, imageUrls } = await getFrameContentRecursive(frame);
+
+  // video
+  // const videoUrls = await frame?.$$('lima-video').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
+
+  return {
+    iframeUrl,
+    screenshot,
+    clickUrls: clickUrls.filter((link) => !!link) as string[],
+    imageUrls: imageUrls.filter((link) => !!link) as string[],
+    videoUrls: ['asdf']
+  }
+}
+
+export async function getFrameContentRecursive(frame: Frame | null) {
+  if (!frame) {
+    return {
+      clickUrls: [],
+      imageUrls: [],
+    }
+  }
+  // click url
+  const clickUrls = await frame?.$$('a').then((els) => Promise.all(els.map((el) => el.getAttribute('href')))) || [];
+
+  // get image url
+  const imageUrls = await frame?.$$('img').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
+  // get all background image url
+  const bgImages = await frame?.$$('.cropped-image-no-overflow-box, .thumb-overlay')
+    .then((els) => Promise.all(
+      els.map((el) => {
+        return el.evaluate((el) => {
+          const style = window.getComputedStyle(el);
+          const background = style.backgroundImage;
+          const url = background.replace(/url\((['"])?(.*?)\1\)/gi, '$2').split(',')[0];
+          return url;
+        });
+      }))
+    );
+
+  if (bgImages) {
+    imageUrls.push(...bgImages);
+  }
+
+
+  const childFrames = frame.childFrames();
+  if (childFrames.length > 0) {
+    for (const child of childFrames) {
+      const result = await getFrameContentRecursive(child);
+      clickUrls.push(...result.clickUrls);
+      imageUrls.push(...result.imageUrls);
+    }
+  }
+
+  return {
+    clickUrls: clickUrls.filter((link) => !!link) as string[],
+    imageUrls: imageUrls.filter((link) => !!link) as string[],
+  }
+}
+
+// dump frame tree
+export function dumpFrameTree(frame: Frame, indent: string) {
+  const url = frame.url();
+  if (url?.includes('about:')) {
+    return;
+  }
+  log.info(`${indent}${frame.name()}`);
+  for (const child of frame.childFrames()) {
+    dumpFrameTree(child, indent + '  ');
+  }
 }
