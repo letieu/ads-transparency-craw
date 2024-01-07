@@ -1,4 +1,4 @@
-import { DB } from "./database";
+import { DB } from "./database.js";
 import "dotenv/config";
 
 const cronicleHost = process.env.CRONICLE_HOST;
