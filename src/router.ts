@@ -12,21 +12,27 @@ export type Creative = {
   format: AdFormat;
   lastShow: Date;
   advertiser: Advertiser;
-  variants: CreativeVariants[];
+  variants: CreativeVariant[];
   regions: string[];
 }
 
-export type CreativeVariants = {
+export type CreativeVariant = {
   iframeUrl: string;
   screenshot: string;
-  clickUrls: string[];
-  videoUrls: string[];
-  imageUrls: string[];
+  html: string;
+  medias: AdMedia[];
+}
+
+export type AdMedia = {
+  type: string;
+  url: string;
+  clickUrl: string;
 }
 
 export type Advertiser = {
   id: string;
   name: string;
+  domain: string;
 }
 
 export enum AdFormat {
@@ -46,7 +52,10 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   // wait for loading-pulse disappear
   await page.waitForSelector('.loading-pulse', { state: 'detached', timeout: 5000 });
 
-  await page.waitForSelector('.advertiser-name > a');
+  await page.waitForSelector('.advertiser-name > a', { timeout: 7000 });
+
+  //0. get domain
+  const domain = new URL(page.url()).searchParams.get('domain') || '';
 
   //1. get advertiser name
   const advertiserName = await page.$('.advertiser-name > a').then((el) => el?.textContent()) || '';
@@ -66,7 +75,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   const regionsText = await page.$$('.region-select-dropdown .label').then((els) => Promise.all(els.map((el) => el.textContent()))) || [];
 
   //4. get variants
-  let variants: CreativeVariants[] = [];
+  let variants: CreativeVariant[] = [];
 
   const variantElements = await page.$$('creative.has-variation');
 
@@ -76,10 +85,10 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
     // check if this variant is iframe
     const isIframe = !!(await wrapper.$('iframe'));
 
-    let variant: CreativeVariants;
+    let variant: CreativeVariant;
 
     if (isIframe) {
-      variant = await getVariantFromFrame(wrapper);
+      variant = await getVariantFromFrame(wrapper, format);
     } else {
       variant = await getVariantFromElement(wrapper);
     }
@@ -99,6 +108,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
     advertiser: {
       id: advertiserID,
       name: advertiserName,
+      domain: domain,
     },
     variants: variants,
     regions: regionsText?.map((text) => text?.trim() ?? '') || [],

@@ -23,14 +23,26 @@ export namespace DB {
   export async function saveCreative(creative: Creative) {
     const advertiser = creative.advertiser;
     const variants = creative.variants;
+    const image = getPreviewImage(creative);
 
+    const savedDomainId = await insertDomain(advertiser.domain);
     const savedAdvId = await insertAdvertiser(advertiser);
-    const savedCreativeId = await insertCreative(creative, savedAdvId);
+    const savedCreativeId = await insertCreative(creative, image, savedAdvId, savedDomainId);
 
     await removeAllVariants(savedCreativeId);
     await insertManyVariant(variants, savedCreativeId);
 
     console.log(`Updated creative ${creative.id} with ${variants.length} variants`);
+  }
+
+  async function insertDomain(domain: string): Promise<number> {
+    const [res] = await dbPool.query<mysql2.ResultSetHeader>(`
+    INSERT INTO domain (domain)
+    VALUES (?)
+    ON DUPLICATE KEY UPDATE domain = ?
+  `, [domain, domain]);
+
+    return res.insertId;
   }
 
   async function insertAdvertiser(advertiser: Advertiser): Promise<number> {
@@ -43,25 +55,45 @@ export namespace DB {
     return res.insertId;
   }
 
-  async function insertCreative(creative: Creative, advertiserDbId: number): Promise<number> {
+  async function insertCreative(creative: Creative, image: string, advertiserDbId: number, domainDbId: number): Promise<number> {
     const [res] = await dbPool.query<mysql2.ResultSetHeader>(`
-    INSERT INTO creative (code, last_show, type, advertiser_id)
-    VALUES (?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE last_show = ?
-  `, [creative.id, creative.lastShow, creativeFormatToNumber(creative.format), advertiserDbId, creative.lastShow]);
+    INSERT INTO creative (code, last_show, type, advertiser_id, image, domain_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE last_show = ?, image = ?
+  `, [creative.id, creative.lastShow, creativeFormatToNumber(creative.format), advertiserDbId, image, domainDbId, creative.lastShow, image]);
 
     return res.insertId;
   }
 
   async function insertManyVariant(variants: Creative['variants'], creativeDbId: number) {
+    const template = `
+    INSERT INTO creative_detail (creative_id, content, content_html, image_screenshot, url_video, urls, images)
+    VALUES ?
+    `;
+
     const values = variants.map((variant) => {
-      return [creativeDbId, variant.screenshot];
+      const { images, urls } = variant.medias
+        .filter((media) => media.type === 'image')
+        .reduce((acc, media) => {
+          acc.images.push(media.url);
+          acc.urls.push(media.clickUrl);
+          return acc;
+        }, { images: [], urls: [] } as { images: string[], urls: string[] });
+
+      const videoUrl = variant.medias.find((media) => media.type === 'video')?.url || '';
+
+      return [
+        creativeDbId,
+        variant.iframeUrl,
+        variant.html,
+        variant.screenshot,
+        videoUrl,
+        urls.join(','),
+        images.join(','),
+      ];
     });
 
-    const [res] = await dbPool.query<mysql2.ResultSetHeader>(`
-    INSERT INTO creative_detail (creative_id, content)
-    VALUES ?
-  `, [values]);
+    const [res] = await dbPool.query<mysql2.ResultSetHeader>(template, [values]);
 
     return res.affectedRows;
   }
@@ -87,4 +119,21 @@ function creativeFormatToNumber(format: Creative['format']) {
     default:
       return 0;
   }
+}
+
+function getPreviewImage(creative: Creative) {
+  const variants = creative.variants;
+  for (const variant of variants) {
+    if (variant.screenshot) {
+      return variant.screenshot;
+    }
+  }
+
+  for (const variant of variants) {
+    if (variant.medias.length) {
+      return variant.medias[0].url;
+    }
+  }
+
+  return '';
 }

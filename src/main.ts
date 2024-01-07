@@ -1,5 +1,5 @@
 import { Configuration, PlaywrightCrawler, PlaywrightCrawlerOptions, purgeDefaultStorages } from 'crawlee';
-import { router } from './router.js';
+import { HandlerLabel, router } from './router.js';
 import { addLangToQuery, setViewport } from './hook.js';
 import { playwrightLaunchOptions } from './launch-option.js';
 import express from 'express';
@@ -21,6 +21,16 @@ const options: PlaywrightCrawlerOptions = {
     setViewport,
   ],
 }
+
+// Test
+const crawler = new PlaywrightCrawler(options);
+await crawler.run([{
+  url: 'https://adstransparency.google.com/advertiser/AR06152299239998226433/creative/CR08006471496815869953?region=VN&format=VIDEO&hl=en',
+  label: HandlerLabel.ADS_DETAIL,
+}]);
+process.exit(0);
+
+// Test
 
 const server = express();
 server.use(bodyParser.json())

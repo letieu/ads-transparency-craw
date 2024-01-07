@@ -1,5 +1,5 @@
 import { ElementHandle, Frame, Page } from "playwright";
-import { AdFormat } from "./router.js";
+import { AdFormat, AdMedia, CreativeVariant } from "./router.js";
 import { log } from "crawlee";
 
 const advertiserRegex = /advertiser\/([A-Z0-9]+)/;
@@ -71,7 +71,7 @@ export function extractDate(text: string): Date {
   return date;
 }
 
-export async function getVariantFromFrame(wrapper: ElementHandle) {
+export async function getVariantFromFrame(wrapper: ElementHandle, format: AdFormat): Promise<CreativeVariant> {
   // wait iframe loaded
   await wrapper.waitForSelector('iframe', { timeout: 2000 }).catch(() => {
     log.error('iframe not found');
@@ -85,141 +85,146 @@ export async function getVariantFromFrame(wrapper: ElementHandle) {
   // get iframe link
   const iframeUrl = await iframe.getAttribute('src') || '';
 
-  // take screenshot of iframe
-  const base64 = (await iframe.screenshot()).toString('base64');
-  const screenshot = `data:image/png;base64,${base64}`;
-
   await iframe.waitForElementState('stable');
   let frame = await iframe.contentFrame();
 
-  // get click url
-  const { clickUrls, imageUrls, videoUrls } = await getFrameContentRecursive(frame);
+  const isText = format === AdFormat.TEXT;
+  const medias = isText ? [] : await getFrameContentRecursive(frame);
+  const html = await frame?.content() || '';
+
+  await frame?.waitForLoadState('networkidle');
+  await frame?.waitForTimeout(500);
+  const base64 = (await iframe.screenshot()).toString('base64');
+  const screenshot = `data:image/png;base64,${base64}`;
 
   return {
     iframeUrl,
     screenshot,
-    clickUrls: clickUrls.filter((link) => !!link) as string[],
-    imageUrls: imageUrls.filter((link) => !!link) as string[],
-    videoUrls: videoUrls.filter((link) => !!link) as string[],
+    html,
+    medias,
   }
 }
 
-export async function getFrameContentRecursive(frame: Frame | null) {
+export async function getFrameContentRecursive(frame: Frame | null): Promise<AdMedia[]> {
   if (!frame) {
-    return {
-      clickUrls: [],
-      imageUrls: [],
-      videoUrls: [],
-    }
+    return [];
   }
 
   log.debug(`frame url: ${frame.url()}`);
   if (isYoutubeFrame(frame)) {
-    return {
-      clickUrls: [],
-      imageUrls: [],
-      videoUrls: [frame.url()],
-    }
+    return [{
+      type: 'video',
+      url: frame.url(),
+      clickUrl: frame.url(),
+    }]
   }
 
-  // click url
-  const clickUrls = await frame?.$$('a').then((els) => Promise.all(els.map((el) => el.getAttribute('href')))) || [];
+  const foundItems = [];
 
   // get image url
-  const imageUrls = await frame?.$$('img').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
-  // get all background image url
-  const bgImages = await frame?.$$('.cropped-image-no-overflow-box, .thumb-overlay')
+  const imgs: AdMedia[] = await frame?.$$('img').then((els) => Promise.all(els.map((el) => {
+    return el.evaluate((el) => {
+      const src = el.getAttribute('src');
+
+      let clickUrl = '';
+      const parentLink = el.parentElement?.closest('a');
+
+      if (parentLink) {
+        clickUrl = parentLink.getAttribute('href') || '';
+      } else {
+        const innerLink = el.querySelector('a');
+        clickUrl = innerLink?.getAttribute('href') || '';
+      }
+
+      return {
+        type: 'image',
+        url: src || '',
+        clickUrl,
+      };
+    });
+  })));
+
+  foundItems.push(...imgs);
+
+  const bgImages: AdMedia[] = await frame?.$$('.cropped-image-no-overflow-box, .thumb-overlay')
     .then((els) => Promise.all(
       els.map((el) => {
         return el.evaluate((el) => {
           const style = window.getComputedStyle(el);
           const background = style.backgroundImage;
-          const url = background.replace(/url\((['"])?(.*?)\1\)/gi, '$2').split(',')[0];
-          return url;
+          const imageUrl = background.replace(/url\((['"])?(.*?)\1\)/gi, '$2').split(',')[0];
+
+          let clickUrl = '';
+          const parentLink = el.parentElement?.closest('a');
+
+          if (parentLink) {
+            clickUrl = parentLink.getAttribute('href') || '';
+          } else {
+            const innerLink = el.querySelector('a');
+            clickUrl = innerLink?.getAttribute('href') || '';
+          }
+
+          return {
+            type: 'image',
+            url: imageUrl,
+            clickUrl,
+          };
         });
       }))
-    );
+    )
 
-  if (bgImages) {
-    imageUrls.push(...bgImages);
-  }
+  foundItems.push(...bgImages);
 
-  // video urls
-  const videoUrls = await frame.evaluate(() => {
-    const videos = document.querySelectorAll('video');
-    const videoUrls = [];
-    for (const video of videos) {
-      const src = video.getAttribute('src');
-      if (src) {
-        videoUrls.push(src);
-      } else {
-        const sources = video.querySelectorAll('source');
-        for (const source of sources) {
-          const src = source.getAttribute('src');
-          if (src) {
-            videoUrls.push(src);
-          }
-        }
-      }
-    }
-    return videoUrls;
-  });
+  // TODO: handle video
 
   const childFrames = frame.childFrames();
   if (childFrames.length > 0) {
     for (const child of childFrames) {
       const result = await getFrameContentRecursive(child);
-      clickUrls.push(...result.clickUrls);
-      imageUrls.push(...result.imageUrls);
-      videoUrls.push(...result.videoUrls);
+      foundItems.push(...result);
     }
   }
 
-  return {
-    clickUrls: clickUrls.filter((link) => !!link) as string[],
-    imageUrls: imageUrls.filter((link) => !!link) as string[],
-    videoUrls: videoUrls.filter((link) => !!link) as string[],
-  }
+  return foundItems;
 }
 
-export async function getVariantFromElement(el: ElementHandle) {
+export async function getVariantFromElement(el: ElementHandle): Promise<CreativeVariant> {
+  const creativeContainer = await el.$('.creative-container') || el;
+
   // take screenshot of Element
-  const base64 = (await el.screenshot()).toString('base64');
+  const base64 = (await creativeContainer.screenshot()).toString('base64');
   const screenshot = `data:image/png;base64,${base64}`;
 
-  // get click url
-  const clickUrls = await el.$$('a').then((els) => Promise.all(els.map((el) => el.getAttribute('href')))) || [];
+  // extract images
+  const imgs: AdMedia[] = await creativeContainer?.$$('img').then((els) => Promise.all(els.map((el) => {
+    return el.evaluate((el) => {
+      const src = el.getAttribute('src');
 
-  // get image url
-  const imageUrls = await el.$$('img').then((els) => Promise.all(els.map((el) => el.getAttribute('src')))) || [];
+      let clickUrl = '';
+      const parentLink = el.parentElement?.closest('a');
 
-  // get video url
-  const videoUrls = await el.evaluate(() => {
-    const videos = document.querySelectorAll('video');
-    const videoUrls = [];
-    for (const video of videos) {
-      const src = video.getAttribute('src');
-      if (src) {
-        videoUrls.push(src);
+      if (parentLink) {
+        clickUrl = parentLink.getAttribute('href') || '';
       } else {
-        const sources = video.querySelectorAll('source');
-        for (const source of sources) {
-          const src = source.getAttribute('src');
-          if (src) {
-            videoUrls.push(src);
-          }
-        }
+        const innerLink = el.querySelector('a');
+        clickUrl = innerLink?.getAttribute('href') || '';
       }
-    }
-    return videoUrls;
-  });
+
+      return {
+        type: 'image',
+        url: src || '',
+        clickUrl,
+      };
+    });
+  })));
 
   return {
     iframeUrl: '',
+    html: '',
     screenshot,
-    clickUrls: clickUrls.filter((link) => !!link) as string[],
-    imageUrls: imageUrls.filter((link) => !!link) as string[],
-    videoUrls: videoUrls.filter((link) => !!link) as string[],
+    medias: [
+      ...imgs,
+    ],
   }
 }
 
