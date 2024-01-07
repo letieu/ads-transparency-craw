@@ -1,18 +1,20 @@
-import { Configuration, PlaywrightCrawler, PlaywrightCrawlerOptions, purgeDefaultStorages } from 'crawlee';
-import { HandlerLabel, router } from './router.js';
+import { Configuration, PlaywrightCrawler, PlaywrightCrawlerOptions } from 'crawlee';
+import { router } from './router.js';
 import { addLangToQuery, setViewport } from './hook.js';
 import { playwrightLaunchOptions } from './launch-option.js';
 import express from 'express';
 import bodyParser from 'body-parser';
 import { MemoryStorage } from '@crawlee/memory-storage'
 import fs from 'fs';
+import { submitJobs } from './job-producer.js';
+import "dotenv/config";
 
 const options: PlaywrightCrawlerOptions = {
   requestHandler: router,
   maxRequestsPerCrawl: 30,
   maxRequestRetries: 3,
   maxRequestsPerMinute: 5,
-  headless: false,
+  headless: process.env.HEADLESS === 'true',
   launchContext: {
     launchOptions: playwrightLaunchOptions,
   },
@@ -22,22 +24,15 @@ const options: PlaywrightCrawlerOptions = {
   ],
 }
 
-// Test
-// const crawler = new PlaywrightCrawler(options);
-// await crawler.run([{
-//   url: 'https://adstransparency.google.com/advertiser/AR04357315858767282177/creative/CR00791531170931146753?region=VN&format=VIDEO',
-//   label: HandlerLabel.ADS_DETAIL,
-// }]);
-// process.exit(0);
-//
-// Test
-
 const server = express();
 server.use(bodyParser.json())
 
 server.post('/crawl', async (req, res) => {
   try {
-    const { region, format, domain } = req.body;
+    const { format, domain } = req.body;
+    const region = 'anywhere'
+
+    console.log('Crawling', region, format, domain);
 
     if (!region || !format || !domain) {
       res.status(400).send('Missing required params');
@@ -70,9 +65,24 @@ server.post('/crawl', async (req, res) => {
 
     res.status(200).json(crawler.stats);
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(500).send(error);
   }
+});
+
+server.post('/create-crawl-jobs', async (_, res) => {
+  try {
+    const detail = await submitJobs();
+    console.log(`Created ${detail.length} jobs`)
+    res.status(200).json(detail);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error);
+  }
+});
+
+server.get('/health', async (_, res) => {
+  res.status(200).send('OK');
 });
 
 server.listen(3000);

@@ -1,0 +1,44 @@
+services:
+  crawler:
+    build: .
+    restart: always
+    hostname: crawler
+    volumes:
+      - ./data/crawler/storage:/home/myuser/storage
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 1s
+      retries: 3
+    links:
+      - cronicle
+
+  cronicle:
+    image: soulteary/cronicle:latest
+    restart: always
+    hostname: cronicle
+    ports:
+      - 3012:3012
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - ./data/cronicle/data:/opt/cronicle/data
+      - ./data/cronicle/logs:/opt/cronicle/logs
+      - ./data/cronicle/plugins:/opt/cronicle/plugins
+    extra_hosts:
+      - "cronicle.lab.io:0.0.0.0"
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:3012/api/app/ping || exit 1"]
+      interval: 5s
+      timeout: 1s
+      retries: 3
+    logging:
+        driver: "json-file"
+        options:
+            max-size: "10m"
+    links:
+      - crawler

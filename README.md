@@ -1,9 +1,50 @@
-# Getting started with Crawlee
+# Crawl adstransparency.google.com
 
-This example uses `PlaywrightCrawler` to recursively crawl https://crawlee.dev using the browser automation library [Playwright](https://playwright.dev).
+## Run development server
 
-You can find more examples and documentation at the following links:
+- Setup
 
-- [Step-by-step tutorial](https://crawlee.dev/docs/introduction) for Crawlee
-- `PlaywrightCrawler` [API documentation](https://crawlee.dev/api/playwright-crawler/class/PlaywrightCrawler)
-- Other [examples](https://crawlee.dev/docs/examples/playwright-crawler)
+```bash
+npm install
+
+cp .env.example .env # and edit
+
+# Start cronicle
+docker compose -f compose-dev.yaml up cronicle
+
+# Login to cronicle to create API key (http://localhost:3012), default user/pass: admin/admin
+
+# Init cronicle events
+API_KEY=xxx ./init-cronicle_events.sh
+
+# Update .env file: CRONICLE_CRAWL_EVENT_ID, CRONICLE_API_KEY
+
+```
+
+- Start development server
+
+```bash
+docker compose -f compose-dev.yaml up -d
+npm run start
+```
+
+## Run production server
+
+- Setup and run
+
+```bash
+cp .env.example .env
+
+# Start cronicle
+docker compose -f compose-prod.yaml up cronicle
+
+# Login to cronicle to create API key (http://localhost:3012), default user/pass: admin/admin
+
+# Init cronicle events
+API_KEY=xxx ./init-cronicle_events.sh
+
+# Update .env file: CRONICLE_CRAWL_EVENT_ID, CRONICLE_API_KEY and database details
+
+# Start production server
+docker compose -f compose-prod.yaml up -d
+```

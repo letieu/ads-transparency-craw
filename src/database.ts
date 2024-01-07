@@ -50,6 +50,14 @@ export namespace DB {
     if (error) throw error;
   }
 
+  export async function getAllActiveDomains() {
+    const [rows] = await dbPool.query<mysql2.RowDataPacket[]>(`
+    SELECT * FROM domain WHERE status = 1
+  `);
+
+    return rows;
+  }
+
   async function insertDomain(domain: string): Promise<number> {
     const domainId = await searchDomainId(domain);
     if (domainId) return domainId;

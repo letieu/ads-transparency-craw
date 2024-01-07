@@ -2,13 +2,31 @@ services:
   db:
     image: mariadb:10.6.4-focal
     command: '--default-authentication-plugin=mysql_native_password'
-    restart: always
     volumes:
-      - db-data:/var/lib/mysql
+      - ./data/db-data:/var/lib/mysql
+      - ./mysql-dump:/docker-entrypoint-initdb.d
     environment:
       - MYSQL_DATABASE=spy
       - MYSQL_ROOT_PASSWORD=secret
     ports:
       - 3306:3306
-volumes:
-  db-data:
+
+  cronicle:
+    image: soulteary/cronicle:latest
+    hostname: cronicle
+    ports:
+      - 3012:3012
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - ./data/cronicle/data:/opt/cronicle/data
+      - ./data/cronicle/logs:/opt/cronicle/logs
+      - ./data/cronicle/plugins:/opt/cronicle/plugins
+    extra_hosts:
+      - "cronicle.lab.io:0.0.0.0"
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+    logging:
+        driver: "json-file"
+        options:
+            max-size: "10m"
