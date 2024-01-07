@@ -177,16 +177,6 @@ export async function getFrameContentRecursive(frame: Frame | null): Promise<AdM
 
   foundItems.push(...bgImages);
 
-  // await frame.evaluate(() => {
-  //   const video = document.querySelector('lima-video');
-  //   console.log(video);
-  // });
-  const vids = await frame?.$$('lima-video');
-  log.info(`Found ${vids.length} videos`);
-
-  const vidWithSrc = await frame?.$$('lima-video[src]');
-  log.info(`Found ${vidWithSrc.length} videos with src`);
-
   const childFrames = frame.childFrames();
   if (childFrames.length > 0) {
     for (const child of childFrames) {

@@ -75,8 +75,10 @@ export namespace DB {
       const { images, urls } = variant.medias
         .filter((media) => media.type === 'image')
         .reduce((acc, media) => {
-          acc.images.push(media.url);
-          acc.urls.push(media.clickUrl);
+          if (media.url && media.clickUrl) {
+            acc.images.push(media.url);
+            acc.urls.push(media.clickUrl);
+          }
           return acc;
         }, { images: [], urls: [] } as { images: string[], urls: string[] });
 
@@ -88,8 +90,8 @@ export namespace DB {
         variant.html,
         variant.screenshot,
         videoUrl,
-        urls.join(','),
-        images.join(','),
+        JSON.stringify(urls),
+        JSON.stringify(images),
       ];
     });
 

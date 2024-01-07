@@ -23,13 +23,13 @@ const options: PlaywrightCrawlerOptions = {
 }
 
 // Test
-const crawler = new PlaywrightCrawler(options);
-await crawler.run([{
-  url: 'https://adstransparency.google.com/advertiser/AR06152299239998226433/creative/CR08006471496815869953?region=VN&format=VIDEO&hl=en',
-  label: HandlerLabel.ADS_DETAIL,
-}]);
-process.exit(0);
-
+// const crawler = new PlaywrightCrawler(options);
+// await crawler.run([{
+//   url: 'https://adstransparency.google.com/advertiser/AR04357315858767282177/creative/CR00791531170931146753?region=VN&format=VIDEO',
+//   label: HandlerLabel.ADS_DETAIL,
+// }]);
+// process.exit(0);
+//
 // Test
 
 const server = express();
