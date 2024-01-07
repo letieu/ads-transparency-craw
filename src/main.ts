@@ -13,7 +13,7 @@ const options: PlaywrightCrawlerOptions = {
   requestHandler: router,
   maxRequestsPerCrawl: 30,
   maxRequestRetries: 3,
-  maxRequestsPerMinute: 5,
+  maxRequestsPerMinute: 10,
   headless: process.env.HEADLESS === 'true',
   launchContext: {
     launchOptions: playwrightLaunchOptions,
