@@ -115,7 +115,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   };
 
   // await Dataset.pushData(creative);
-  await DB.saveCreative(creative);
+  // await DB.saveCreative(creative);
 });
 
 router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {

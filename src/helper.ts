@@ -90,7 +90,9 @@ export async function getVariantFromFrame(wrapper: ElementHandle, format: AdForm
 
   const isText = format === AdFormat.TEXT;
   const medias = isText ? [] : await getFrameContentRecursive(frame);
-  const html = await frame?.content() || '';
+
+  const isVideo = format === AdFormat.VIDEO;
+  const html = isVideo ? '' : await frame?.content();
 
   await frame?.waitForLoadState('networkidle');
   await frame?.waitForTimeout(500);
@@ -100,7 +102,7 @@ export async function getVariantFromFrame(wrapper: ElementHandle, format: AdForm
   return {
     iframeUrl,
     screenshot,
-    html,
+    html: html || '',
     medias,
   }
 }
@@ -175,7 +177,15 @@ export async function getFrameContentRecursive(frame: Frame | null): Promise<AdM
 
   foundItems.push(...bgImages);
 
-  // TODO: handle video
+  // await frame.evaluate(() => {
+  //   const video = document.querySelector('lima-video');
+  //   console.log(video);
+  // });
+  const vids = await frame?.$$('lima-video');
+  log.info(`Found ${vids.length} videos`);
+
+  const vidWithSrc = await frame?.$$('lima-video[src]');
+  log.info(`Found ${vidWithSrc.length} videos with src`);
 
   const childFrames = frame.childFrames();
   if (childFrames.length > 0) {
