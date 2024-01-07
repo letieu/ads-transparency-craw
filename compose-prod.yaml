@@ -4,7 +4,7 @@ services:
     restart: always
     hostname: crawler
     volumes:
-      - ./data/crawler/storage:/home/myuser/storage
+      - spy-crawler-storage:/home/myuser/storage
     env_file:
       - .env
     healthcheck:
@@ -24,9 +24,9 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
-      - ./data/cronicle/data:/opt/cronicle/data
-      - ./data/cronicle/logs:/opt/cronicle/logs
-      - ./data/cronicle/plugins:/opt/cronicle/plugins
+      - spy-cronicle/data:/opt/cronicle/data
+      - spy-cronicle/logs:/opt/cronicle/logs
+      - spy-cronicle/plugins:/opt/cronicle/plugins
     extra_hosts:
       - "cronicle.lab.io:0.0.0.0"
     environment:
@@ -46,3 +46,6 @@ services:
 networks:
   crawler:
     driver: bridge
+volumes:
+  spy-crawler-storage:
+  spy-cronicle:
