@@ -25,8 +25,8 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - spy-cronicle-data:/opt/cronicle/data
-      - spy-cronicle-logs/logs:/opt/cronicle/logs
-      - spy-cronicle-plugins/plugins:/opt/cronicle/plugins
+      - spy-cronicle-logs:/opt/cronicle/logs
+      - spy-cronicle-plugins:/opt/cronicle/plugins
     extra_hosts:
       - "cronicle.lab.io:0.0.0.0"
     environment:
