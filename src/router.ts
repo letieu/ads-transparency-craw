@@ -169,6 +169,8 @@ router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {
     }
   });
 
+  log.info(`Found ${await page.$$('creative-preview > a').then((els) => els.length)} ads`);
+
   await enqueueLinks({
     selector: 'creative-preview > a',
     label: HandlerLabel.ADS_DETAIL,

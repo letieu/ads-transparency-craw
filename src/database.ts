@@ -25,17 +25,35 @@ export namespace DB {
     const variants = creative.variants;
     const image = getPreviewImage(creative);
 
-    const savedDomainId = await insertDomain(advertiser.domain);
-    const savedAdvId = await insertAdvertiser(advertiser);
-    const savedCreativeId = await insertCreative(creative, image, savedAdvId, savedDomainId);
+    const connection = await dbPool.getConnection();
+    await connection.beginTransaction();
+    let error: any;
 
-    await removeAllVariants(savedCreativeId);
-    await insertManyVariant(variants, savedCreativeId);
+    try {
+      const savedDomainId = await insertDomain(advertiser.domain);
+      const savedAdvId = await insertAdvertiser(advertiser);
+      const savedCreativeId = await insertCreative(creative, image, savedAdvId, savedDomainId);
 
-    console.log(`Updated creative ${creative.id} with ${variants.length} variants`);
+      await removeAllVariants(savedCreativeId);
+      await insertManyVariant(variants, savedCreativeId);
+
+      await connection.commit();
+      console.log(`Updated creative ${creative.id} with ${variants.length} variants`);
+    } catch (error) {
+      await connection.rollback();
+      console.log(error);
+      error = error;
+    } finally {
+      connection.release();
+    }
+
+    if (error) throw error;
   }
 
   async function insertDomain(domain: string): Promise<number> {
+    const domainId = await searchDomainId(domain);
+    if (domainId) return domainId;
+
     const [res] = await dbPool.query<mysql2.ResultSetHeader>(`
     INSERT INTO domain (domain)
     VALUES (?)
@@ -45,7 +63,19 @@ export namespace DB {
     return res.insertId;
   }
 
+  async function searchDomainId(domain: string) {
+    const [rows] = await dbPool.query<mysql2.RowDataPacket[]>(`
+    SELECT id FROM domain
+    WHERE domain = ?
+  `, [domain]);
+
+    return rows[0]?.id;
+  }
+
   async function insertAdvertiser(advertiser: Advertiser): Promise<number> {
+    const advertiserId = await searchAdvertiserId(advertiser.id);
+    if (advertiserId) return advertiserId;
+
     const [res] = await dbPool.query<mysql2.ResultSetHeader>(`
     INSERT INTO advertiser (code, name)
     VALUES (?, ?)
@@ -55,14 +85,35 @@ export namespace DB {
     return res.insertId;
   }
 
+  async function searchAdvertiserId(advertiserCode: string) {
+    const [rows] = await dbPool.query<mysql2.RowDataPacket[]>(`
+    SELECT id FROM advertiser
+    WHERE code = ?
+  `, [advertiserCode]);
+
+    return rows[0]?.id;
+  }
+
   async function insertCreative(creative: Creative, image: string, advertiserDbId: number, domainDbId: number): Promise<number> {
+    const creativeId = await searchCreativeId(creative.id);
+    if (creativeId) return creativeId;
+
     const [res] = await dbPool.query<mysql2.ResultSetHeader>(`
-    INSERT INTO creative (code, last_show, type, advertiser_id, image, domain_id)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO creative (code, last_show, type, advertiser_id, image, domain_id, link)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE last_show = ?, image = ?
-  `, [creative.id, creative.lastShow, creativeFormatToNumber(creative.format), advertiserDbId, image, domainDbId, creative.lastShow, image]);
+  `, [creative.id, creative.lastShow, creativeFormatToNumber(creative.format), advertiserDbId, image, domainDbId, creative.link, creative.lastShow, image]);
 
     return res.insertId;
+  }
+
+  async function searchCreativeId(creativeCode: string) {
+    const [rows] = await dbPool.query<mysql2.RowDataPacket[]>(`
+    SELECT id FROM creative
+    WHERE code = ?
+  `, [creativeCode]);
+
+    return rows[0]?.id;
   }
 
   async function insertManyVariant(variants: Creative['variants'], creativeDbId: number) {
