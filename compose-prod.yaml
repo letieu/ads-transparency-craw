@@ -12,8 +12,8 @@ services:
       interval: 30s
       timeout: 1s
       retries: 3
-    links:
-      - cronicle
+    networks:
+      - crawler
 
   cronicle:
     image: soulteary/cronicle:latest
@@ -40,5 +40,9 @@ services:
         driver: "json-file"
         options:
             max-size: "10m"
-    links:
+    networks:
       - crawler
+
+networks:
+  crawler:
+    driver: bridge
