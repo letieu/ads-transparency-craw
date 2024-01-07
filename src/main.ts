@@ -1,5 +1,5 @@
 import { Configuration, PlaywrightCrawler, PlaywrightCrawlerOptions } from 'crawlee';
-import { router } from './router.js';
+import { HandlerLabel, router } from './router.js';
 import { addLangToQuery, setViewport } from './hook.js';
 import { playwrightLaunchOptions } from './launch-option.js';
 import express from 'express';
@@ -23,6 +23,15 @@ const options: PlaywrightCrawlerOptions = {
     setViewport,
   ],
 }
+
+// ----
+// const crawler = new PlaywrightCrawler(options);
+// await crawler.run([{
+//   label: HandlerLabel.ADS_DETAIL,
+//   url: "https://adstransparency.google.com/advertiser/AR04084632027276509185/creative/CR01769191621582127105?region=anywhere&format=IMAGE&hl=en&domain=shopee.vn"
+// }]);
+// process.exit(0);
+// -----
 
 const server = express();
 server.use(bodyParser.json())

@@ -134,7 +134,7 @@ export namespace DB {
       const { images, urls } = variant.medias
         .filter((media) => media.type === 'image')
         .reduce((acc, media) => {
-          if (media.url && media.clickUrl) {
+          if (media.url) {
             acc.images.push(media.url);
             acc.urls.push(media.clickUrl);
           }

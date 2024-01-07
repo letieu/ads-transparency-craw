@@ -125,37 +125,15 @@ router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {
     throw new Error('Domain not found');
   }
 
-  await page.waitForSelector('.search-input-searchable-center');
-  // Get the search input element.
-  const searchInput = await page.$('.search-input-searchable-center input');
-
-  if (!searchInput) {
-    throw new Error('Search input not found');
-  }
-
-  // Type the search query.
-  await searchInput.type(domain);
-
-  // wait for suggestions to appear.
-  await page.waitForSelector('.search-suggestions-wrapper');
-
-  // Get the first suggestion.
-  const firstSuggestion = await page.$('.search-suggestions-wrapper material-select-item:first-child');
-
-  if (!firstSuggestion) {
-    throw new Error('First suggestion not found');
-  }
-
-  // Get the text content of the first suggestion.
-  const firstSuggestionText = await firstSuggestion.textContent();
-  log.debug(`First suggestion: ${firstSuggestionText}`);
-
-  // Click on the first suggestion.
-  await firstSuggestion.click();
+  await page.getByLabel('Search by advertiser or').click();
+  await page.getByLabel('Search by advertiser or').fill(domain);
+  await page.getByRole('option', { name: 'shopee.vn', exact: true }).locator('div').first().click();
 
   // wait for the search results to appear.
   await page.waitForSelector('creative-grid');
   await page.waitForSelector('creative-preview > a');
+
+  await page.getByRole('button', { name: 'See all ads' }).click();
 
   // add &domain=example.com to all links
   await page.evaluate(() => {
