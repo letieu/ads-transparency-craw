@@ -3,8 +3,6 @@ services:
     build: .
     restart: always
     hostname: crawler
-    volumes:
-      - spy-crawler-storage:/home/myuser/storage
     env_file:
       - .env
     healthcheck:
@@ -47,7 +45,6 @@ networks:
   crawler:
     driver: bridge
 volumes:
-  spy-crawler-storage:
   spy-cronicle-data:
   spy-cronicle-logs:
   spy-cronicle-plugins:
