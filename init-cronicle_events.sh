@@ -6,6 +6,11 @@ if [ -z "$API_KEY" ]; then
     exit 1
 fi
 
+# load crawler host from environment, if not set, use default
+if [ -z "$CRAWLER_HOST" ]; then
+    CRAWLER_HOST="http://crawler:3000"
+fi
+
 # Create: create_crawl_job
 echo "Create: create_crawl_job event"
 curl -X POST \
@@ -15,7 +20,7 @@ curl -X POST \
     "enabled": 1,
     "params": {
         "method": "POST",
-        "url": "http://crawler:3000/create-crawl-jobs",
+        "url": "'$CRAWLER_HOST'/create-crawl-jobs",
         "headers": "User-Agent: Cronicle/1.0",
         "data": "",
         "timeout": "60",

@@ -15,7 +15,7 @@ docker compose -f compose-dev.yaml up cronicle
 # Login to cronicle to create API key (http://localhost:3012), default user/pass: admin/admin
 
 # Init cronicle events
-API_KEY=xxx ./init-cronicle_events.sh
+API_KEY=xxx CRAWLER_HOST=http://host.docker.internal:3000 ./init-cronicle_events.sh
 
 # Update .env file: CRONICLE_CRAWL_EVENT_ID, CRONICLE_API_KEY
 
