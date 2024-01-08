@@ -33,6 +33,7 @@ export namespace DB {
       const savedDomainId = await insertDomain(advertiser.domain);
       const savedAdvId = await insertAdvertiser(advertiser);
       const savedCreativeId = await insertCreative(creative, image, savedAdvId, savedDomainId);
+      await insertManyRegions(creative.regions, savedCreativeId);
 
       await removeAllVariants(savedCreativeId);
       await insertManyVariant(variants, savedCreativeId);
@@ -166,6 +167,29 @@ export namespace DB {
   `, [creativeId]);
 
     return res;
+  }
+
+  async function insertManyRegions(regions: string[], savedCreativeId: number) {
+    const regionIds = await searchRegionsByNames(regions);
+
+    const template = `
+    INSERT INTO creative_region (creative_id, region_id)
+    VALUES ?
+    `;
+
+    const values = regionIds.map((region) => [savedCreativeId, region.id]);
+
+    const [res] = await dbPool.query<mysql2.ResultSetHeader>(template, [values]);
+    return res;
+  }
+
+  async function searchRegionsByNames(regions: string[]) {
+    const [rows] = await dbPool.query<mysql2.RowDataPacket[]>(`
+    SELECT id, name FROM region
+    WHERE name IN (?)
+  `, [regions]);
+
+    return rows;
   }
 }
 

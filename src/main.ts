@@ -1,11 +1,5 @@
-import { Configuration, PlaywrightCrawler, PlaywrightCrawlerOptions } from 'crawlee';
-import { HandlerLabel, router } from './router.js';
-import { addLangToQuery, setViewport } from './hook.js';
-import { playwrightLaunchOptions } from './launch-option.js';
 import express from 'express';
 import bodyParser from 'body-parser';
-import { MemoryStorage } from '@crawlee/memory-storage'
-import fs from 'fs';
 import { submitJobs } from './job-producer.js';
 import "dotenv/config";
 import { crawlUrl } from './crawler.js';

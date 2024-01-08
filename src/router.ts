@@ -1,4 +1,4 @@
-import { Dataset, createPlaywrightRouter } from 'crawlee';
+import { createPlaywrightRouter } from 'crawlee';
 import { extractDate, extractFormat, extractIDs, getVariantFromElement, getVariantFromFrame } from './helper.js';
 import { DB } from './database.js';
 

@@ -2,11 +2,8 @@ import { Configuration, PlaywrightCrawler, PlaywrightCrawlerOptions } from 'craw
 import { HandlerLabel, router } from './router.js';
 import { addLangToQuery, setViewport } from './hook.js';
 import { playwrightLaunchOptions } from './launch-option.js';
-import express from 'express';
-import bodyParser from 'body-parser';
 import { MemoryStorage } from '@crawlee/memory-storage'
 import fs from 'fs';
-import { submitJobs } from './job-producer.js';
 import "dotenv/config";
 
 const options: PlaywrightCrawlerOptions = {
@@ -25,7 +22,7 @@ const options: PlaywrightCrawlerOptions = {
 }
 
 export async function crawlUrl(url: string, label?: HandlerLabel, overwriteOptions?: Partial<PlaywrightCrawlerOptions>) {
-  const localDataDirectory = `./storage/${url}-${Date.now()}`;
+  const localDataDirectory = `./storage/${Date.now()}`;
 
   const storageClient = new MemoryStorage({
     localDataDirectory: localDataDirectory,

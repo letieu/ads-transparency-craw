@@ -50,5 +50,4 @@ docker compose -f compose-prod.yaml up -d
 ```
 
 ## TODO:
-1. Fix case search tiki.vn
 2. Save region
