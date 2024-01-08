@@ -50,4 +50,3 @@ docker compose -f compose-prod.yaml up -d
 ```
 
 ## TODO:
-2. Save region

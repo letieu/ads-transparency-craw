@@ -30,7 +30,7 @@ export namespace DB {
     let error: any;
 
     try {
-      const savedDomainId = await insertDomain(advertiser.domain);
+      const savedDomainId = await insertDomain(creative.domain);
       const savedAdvId = await insertAdvertiser(advertiser);
       const savedCreativeId = await insertCreative(creative, image, savedAdvId, savedDomainId);
       await insertManyRegions(creative.regions, savedCreativeId);
@@ -60,6 +60,8 @@ export namespace DB {
   }
 
   async function insertDomain(domain: string): Promise<number> {
+    if (!domain || !domain?.trim()) return 0;
+
     const domainId = await searchDomainId(domain);
     if (domainId) return domainId;
 
@@ -207,13 +209,19 @@ function creativeFormatToNumber(format: Creative['format']) {
 }
 
 function getPreviewImage(creative: Creative) {
+  // use preview image if available
+  if (creative.previewImage) return creative.previewImage;
+
   const variants = creative.variants;
+
+  // use screenshot if available
   for (const variant of variants) {
     if (variant.screenshot) {
       return variant.screenshot;
     }
   }
 
+  // use first image if available
   for (const variant of variants) {
     if (variant.medias.length) {
       return variant.medias[0].url;

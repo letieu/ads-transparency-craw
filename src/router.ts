@@ -1,4 +1,4 @@
-import { createPlaywrightRouter } from 'crawlee';
+import { KeyValueStore, createPlaywrightRouter } from 'crawlee';
 import { extractDate, extractFormat, extractIDs, getVariantFromElement, getVariantFromFrame } from './helper.js';
 import { DB } from './database.js';
 
@@ -7,6 +7,7 @@ export enum HandlerLabel {
 }
 
 export type Creative = {
+  previewImage: string | null;
   id: string;
   link: string;
   format: AdFormat;
@@ -14,6 +15,7 @@ export type Creative = {
   advertiser: Advertiser;
   variants: CreativeVariant[];
   regions: string[];
+  domain: string;
 }
 
 export type CreativeVariant = {
@@ -32,7 +34,6 @@ export type AdMedia = {
 export type Advertiser = {
   id: string;
   name: string;
-  domain: string;
 }
 
 export enum AdFormat {
@@ -56,7 +57,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   await page.waitForSelector('.advertiser-name > a', { timeout: 7000 });
 
   //0. get domain
-  const domain = new URL(page.url()).searchParams.get('domain') || '';
+  const domain = await KeyValueStore.getValue<string>(`${creativeID}.domain`) || '';
 
   //1. get advertiser name
   const advertiserName = await page.$('.advertiser-name > a').then((el) => el?.textContent()) || '';
@@ -102,6 +103,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   }
 
   const creative: Creative = {
+    previewImage: await KeyValueStore.getValue<string>(`${creativeID}.image`),
     id: creativeID,
     link: request.url,
     format,
@@ -109,8 +111,8 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
     advertiser: {
       id: advertiserID,
       name: advertiserName,
-      domain: domain,
     },
+    domain: domain,
     variants: variants,
     regions: regionsText?.map((text) => text?.trim() ?? '') || [],
   };
@@ -120,7 +122,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
 });
 
 // search page
-router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {
+router.addDefaultHandler(async ({ page, crawler, log }) => {
   const urlQuery = new URL(page.url()).searchParams;
   const domain = urlQuery.get('domain');
   if (!domain) {
@@ -137,22 +139,40 @@ router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {
 
   await page.getByRole('button', { name: 'See all ads' }).click();
 
-  // add &domain=example.com to all links
-  await page.evaluate(() => {
-    const domain = new URL(window.location.href).searchParams.get('domain');
-    const links = document.querySelectorAll('creative-preview > a');
-    for (const link of links) {
-      let href = link.getAttribute('href');
-      if (!href) return;
-      href += `&domain=${domain}`;
-      link.setAttribute('href', href);
+  // loop through all ads and add request
+  const linksLocator = await page.locator('creative-preview > a').all();
+
+  log.info(`Found ${linksLocator.length} ads`);
+
+  const creativeCodeRegex = /\/creative\/([A-Z0-9]+)/
+
+  await Promise.all(linksLocator.map(async (link) => {
+    const href = await link.getAttribute('href');
+    if (!href) return;
+
+    const creativeCode = creativeCodeRegex.exec(href)?.[1] || '';
+    if (!creativeCode) return;
+
+    try {
+      // wait loading-pulse disappear
+      await link.locator('img').waitFor({ state: 'visible', timeout: 20 * 1000 })
+      const img = link.locator('img').first();
+      const src = await img.getAttribute('src');
+      const imageKey = `${creativeCode}.image`;
+      await KeyValueStore.setValue(imageKey, src);
+    } catch (error) {
+      log.warning(`Error while getting image for ${creativeCode}`);
+    } finally {
+      log.info(`Added request for ${creativeCode}`);
+      const domainKey = `${creativeCode}.domain`;
+      await KeyValueStore.setValue(domainKey, domain);
+
+      const fullUrl = new URL(href, page.url()).toString();
+
+      await crawler.addRequests([{
+        url: fullUrl,
+        label: HandlerLabel.ADS_DETAIL,
+      }])
     }
-  });
-
-  log.info(`Found ${await page.$$('creative-preview > a').then((els) => els.length)} ads`);
-
-  await enqueueLinks({
-    selector: 'creative-preview > a',
-    label: HandlerLabel.ADS_DETAIL,
-  });
+  }));
 });

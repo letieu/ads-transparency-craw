@@ -8,7 +8,7 @@ import "dotenv/config";
 
 const options: PlaywrightCrawlerOptions = {
   requestHandler: router,
-  maxRequestsPerCrawl: 30,
+  maxRequestsPerCrawl: 50,
   maxRequestRetries: 3,
   maxRequestsPerMinute: 10,
   headless: process.env.HEADLESS === 'true',
