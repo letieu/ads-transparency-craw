@@ -53,7 +53,7 @@ export async function createJob(eventId: string, payload: JobPayload) {
       "url": `${selfHost}/crawl`,
       "headers": "Content-Type: application/json",
       "data": JSON.stringify(payload),
-      "timeout": "600", // 10 minutes
+      "timeout": "1200", // 12 minutes
       "follow": 0,
       "ssl_cert_bypass": 0,
       "success_match": "",
