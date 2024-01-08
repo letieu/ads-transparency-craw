@@ -137,6 +137,8 @@ router.addDefaultHandler(async ({ page, crawler, log }) => {
   await page.waitForSelector('creative-grid');
   await page.waitForSelector('creative-preview > a');
 
+  // wait 5s
+  await page.waitForTimeout(5000);
   await page.getByRole('button', { name: 'See all ads' }).click();
 
   // loop through all ads and add request
@@ -154,6 +156,9 @@ router.addDefaultHandler(async ({ page, crawler, log }) => {
     if (!creativeCode) return;
 
     try {
+      // scroll down to load images
+      await link.scrollIntoViewIfNeeded();
+
       // wait loading-pulse disappear
       await link.locator('img').waitFor({ state: 'visible', timeout: 20 * 1000 })
       const img = link.locator('img').first();

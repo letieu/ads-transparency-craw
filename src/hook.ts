@@ -8,7 +8,7 @@ export const addLangToQuery: PlaywrightHook = async ({ request }) => {
 export const setViewport: PlaywrightHook = async ({ page }) => {
   await page.setViewportSize({
     width: 1350,
-    height: 1000,
+    height: 750,
   });
 }
 
