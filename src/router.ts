@@ -43,6 +43,7 @@ export enum AdFormat {
 
 export const router = createPlaywrightRouter();
 
+// ads detail page
 router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   const { advertiserID, creativeID } = extractIDs(request.url);
 
@@ -118,6 +119,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   await DB.saveCreative(creative);
 });
 
+// search page
 router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {
   const urlQuery = new URL(page.url()).searchParams;
   const domain = urlQuery.get('domain');
@@ -127,7 +129,7 @@ router.addDefaultHandler(async ({ page, enqueueLinks, log }) => {
 
   await page.getByLabel('Search by advertiser or').click();
   await page.getByLabel('Search by advertiser or').fill(domain);
-  await page.getByRole('option', { name: 'shopee.vn', exact: true }).locator('div').first().click();
+  await page.getByRole('option', { name: domain, exact: true }).locator('div').first().click();
 
   // wait for the search results to appear.
   await page.waitForSelector('creative-grid');

@@ -8,30 +8,7 @@ import { MemoryStorage } from '@crawlee/memory-storage'
 import fs from 'fs';
 import { submitJobs } from './job-producer.js';
 import "dotenv/config";
-
-const options: PlaywrightCrawlerOptions = {
-  requestHandler: router,
-  maxRequestsPerCrawl: 30,
-  maxRequestRetries: 3,
-  maxRequestsPerMinute: 10,
-  headless: process.env.HEADLESS === 'true',
-  launchContext: {
-    launchOptions: playwrightLaunchOptions,
-  },
-  preNavigationHooks: [
-    addLangToQuery,
-    setViewport,
-  ],
-}
-
-// ----
-// const crawler = new PlaywrightCrawler(options);
-// await crawler.run([{
-//   label: HandlerLabel.ADS_DETAIL,
-//   url: "https://adstransparency.google.com/advertiser/AR04084632027276509185/creative/CR01769191621582127105?region=anywhere&format=IMAGE&hl=en&domain=shopee.vn"
-// }]);
-// process.exit(0);
-// -----
+import { crawlUrl } from './crawler.js';
 
 const server = express();
 server.use(bodyParser.json())
@@ -55,24 +32,30 @@ server.post('/crawl', async (req, res) => {
 
     const url = `https://adstransparency.google.com/?region=${region}&format=${format}&domain=${domain}`;
 
-    const localDataDirectory = `./storage/${region}-${format}-${domain}-${Date.now()}`;
+    const stats = await crawlUrl(url);
+    res.status(200).json(stats);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error);
+  }
+});
 
-    const storageClient = new MemoryStorage({
-      localDataDirectory: localDataDirectory,
+// For test
+server.post('/crawl-url', async (req, res) => {
+  try {
+    const url = req.body.url;
+    const label = req.body.label
+
+    if (!url) {
+      res.status(400).send('Missing required params');
+      return;
+    }
+
+    const stats = await crawlUrl(url, label, {
+      maxRequestsPerCrawl: 3,
     });
-    const config: Configuration = new Configuration({
-      storageClient,
-    });
 
-    const crawler = new PlaywrightCrawler(options, config);
-    await crawler.run([url]);
-
-    // remove storage after crawl
-    await storageClient.purge();
-    // remove folder after purge
-    fs.rmSync(localDataDirectory, { recursive: true });
-
-    res.status(200).json(crawler.stats);
+    res.status(200).json(stats);
   } catch (error) {
     console.error(error);
     res.status(500).send(error);
