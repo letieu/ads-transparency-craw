@@ -3,6 +3,8 @@ services:
     build: .
     restart: always
     hostname: crawler
+    ports:
+      - 3013:3000
     env_file:
       - .env
     healthcheck:
