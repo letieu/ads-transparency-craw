@@ -5,6 +5,7 @@ export async function sendWebhook(webhook: string, data: any, method = 'POST') {
     body: JSON.stringify(data),
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.WEBHOOK_TOKEN}`,
     },
   });
 
