@@ -139,7 +139,11 @@ router.addDefaultHandler(async ({ page, crawler, log }) => {
 
   // wait 5s
   await page.waitForTimeout(5000);
-  await page.getByRole('button', { name: 'See all ads' }).click();
+
+  const loadMore = page.getByRole('button', { name: 'See all ads' });
+  if (await loadMore.isVisible()) {
+    await loadMore.click();
+  }
 
   // loop through all ads and add request
   const linksLocator = await page.locator('creative-preview > a').all();
