@@ -1,15 +1,16 @@
 import express from 'express';
 import bodyParser from 'body-parser';
-import { submitJobs } from './job-producer.js';
+import { createJobsForDomain, createJobsForSavedDomains } from './job-producer.js';
 import "dotenv/config";
 import { crawlUrl } from './crawler.js';
+import { sendWebhook } from './webhooks.js';
 
 const server = express();
 server.use(bodyParser.json())
 
 server.post('/crawl', async (req, res) => {
   try {
-    const { format, domain } = req.body;
+    const { format, domain, webhook, webhookMethod } = req.body;
     const region = 'anywhere'
 
     console.log('Crawling', region, format, domain);
@@ -27,6 +28,9 @@ server.post('/crawl', async (req, res) => {
     const url = `https://adstransparency.google.com/?region=${region}&format=${format}&domain=${domain}`;
 
     const stats = await crawlUrl(url);
+    if (webhook) {
+      await sendWebhook(webhook, { domain, format, stats }, webhookMethod);
+    }
     res.status(200).json(stats);
   } catch (error) {
     console.error(error);
@@ -56,9 +60,28 @@ server.post('/crawl-url', async (req, res) => {
   }
 });
 
-server.post('/create-crawl-jobs', async (_, res) => {
+server.post('/create-crawl-jobs/domain', async (req, res) => {
+  console.log('create-crawl-jobs/domain')
+  const { domain, webhook, webhookMethod } = req.body;
+  if (!domain) {
+    res.status(400).send('Missing domain');
+    return;
+  }
+
   try {
-    const detail = await submitJobs();
+    const detail = await createJobsForDomain(domain, webhook, webhookMethod);
+    console.log(`Created ${detail.length} jobs for ${domain}`)
+    res.status(200).json(detail);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send(error);
+  }
+});
+
+server.post('/create-crawl-jobs', async (_, res) => {
+  console.log('create-crawl-jobs')
+  try {
+    const detail = await createJobsForSavedDomains();
     console.log(`Created ${detail.length} jobs`)
     res.status(200).json(detail);
   } catch (error) {

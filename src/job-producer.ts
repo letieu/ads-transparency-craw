@@ -4,7 +4,9 @@ import "dotenv/config";
 const cronicleHost = process.env.CRONICLE_HOST;
 const cronicleApiKey = process.env.CRONICLE_API_KEY;
 const crawlEventId = process.env.CRONICLE_CRAWL_EVENT_ID;
+const crawlDomainEventId = process.env.CRONICLE_CRAWL_DOMAIN_EVENT_ID;
 const selfHost = process.env.SELF_HOST;
+const supportFormats = process.env.SUPPORT_FORMATS?.split(',') || ['TEXT', 'IMAGE', 'VIDEO'];
 
 if (!cronicleHost) {
   throw new Error('Missing CRONICLE_HOST env');
@@ -22,18 +24,17 @@ if (!selfHost) {
 type JobPayload = {
   domain: string;
   format: string;
+  webhook?: string;
+  webhookMethod?: string;
 };
 
-export async function getCrawlJobPayloads() {
-  const domains = await DB.getAllActiveDomains();
-  const formats = ['TEXT', 'IMAGE', 'VIDEO'];
-
+export async function getCrawlJobPayloads(domainUrls: string[]) {
   const jobs = [];
 
-  for (const domain of domains) {
-    for (const format of formats) {
+  for (const url of domainUrls) {
+    for (const format of supportFormats) {
       jobs.push({
-        domain: domain.domain,
+        domain: url,
         format,
       });
     }
@@ -53,7 +54,7 @@ export async function createJob(eventId: string, payload: JobPayload) {
       "url": `${selfHost}/crawl`,
       "headers": "Content-Type: application/json",
       "data": JSON.stringify(payload),
-      "timeout": "1200", // 12 minutes
+      "timeout": "1800", // 18 minutes
       "follow": 0,
       "ssl_cert_bypass": 0,
       "success_match": "",
@@ -84,13 +85,32 @@ export async function createJob(eventId: string, payload: JobPayload) {
   return data;
 }
 
-export async function submitJobs() {
-  const payloads = await getCrawlJobPayloads()
+export async function createJobsForSavedDomains() {
+  const domains = await DB.getAllActiveDomains();
+  const urls = domains.map((domain) => domain.domain);
+  const payloads = await getCrawlJobPayloads(urls);
 
   const res = [];
 
   for await (const payload of payloads) {
     const detail = await createJob(crawlEventId as string, payload);
+    res.push(detail);
+  }
+
+  return res;
+}
+
+export async function createJobsForDomain(domainUrl: string, webhook?: string, webhookMethod?: string) {
+  const payloads = await getCrawlJobPayloads([domainUrl]);
+
+  const res = [];
+
+  for await (const payload of payloads) {
+    const detail = await createJob(crawlDomainEventId as string, {
+      ...payload,
+      webhook,
+      webhookMethod,
+    });
     res.push(detail);
   }
 
