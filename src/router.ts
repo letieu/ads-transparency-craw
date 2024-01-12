@@ -1,5 +1,5 @@
 import { KeyValueStore, createPlaywrightRouter } from 'crawlee';
-import { extractDate, extractFormat, extractIDs, getVariantFromElement, getVariantFromFrame } from './helper.js';
+import { extractCreativesFromApiRespons, extractDate, extractFormat, extractIDs, getVariantFromElement, getVariantFromFrame } from './helper.js';
 import { DB } from './database.js';
 
 export enum HandlerLabel {
@@ -14,6 +14,7 @@ export type Creative = {
   link: string;
   format: AdFormat;
   lastShow: Date;
+  firstShow?: Date;
   advertiser: Advertiser;
   variants: CreativeVariant[];
   regions: string[];
@@ -104,23 +105,35 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
     variants.push(variant);
   }
 
-  const creative: Creative = {
-    previewImage: await KeyValueStore.getValue<string>(`${creativeID}.image`),
-    id: creativeID,
-    link: request.url,
-    format,
-    lastShow,
-    advertiser: {
-      id: advertiserID,
-      name: advertiserName,
-    },
-    domain: domain,
-    variants: variants,
-    regions: regionsText?.map((text) => text?.trim() ?? '') || [],
-  };
+  const previewCreativeJson = await KeyValueStore.getValue<string>(`${creativeID}.creative`);
+  const previewCreative: Creative = previewCreativeJson ? JSON.parse(previewCreativeJson) : null;
 
-  // await Dataset.pushData(creative);
-  await DB.saveCreative(creative);
+  if (previewCreative) {
+    previewCreative.variants = variants;
+    previewCreative.regions = regionsText?.map((text) => text?.trim() ?? '') || [];
+    if (previewCreative.previewImage) {
+      const previewImage = await KeyValueStore.getValue<string>(`${creativeID}.image`);
+      previewCreative.previewImage = previewImage;
+    }
+    await DB.saveCreative(previewCreative);
+  } else {
+    const creative: Creative = {
+      previewImage: await KeyValueStore.getValue<string>(`${creativeID}.image`),
+      id: creativeID,
+      link: request.url,
+      format,
+      lastShow,
+      advertiser: {
+        id: advertiserID,
+        name: advertiserName,
+      },
+      domain: domain,
+      variants: variants,
+      regions: regionsText?.map((text) => text?.trim() ?? '') || [],
+    };
+
+    await DB.saveCreative(creative);
+  }
 });
 
 // search page
@@ -155,6 +168,13 @@ router.addHandler(HandlerLabel.SEARCH_PAGE, async ({ page, crawler, log }) => {
     await DB.insertAdvertiser(advertiser);
   }
 
+  const firstResponse = await page.waitForResponse(response => response.url().includes('/SearchService/SearchCreatives') && response.status() === 200);
+  const creatives = extractCreativesFromApiRespons(await firstResponse.json(), isAdvPage ? searchTerm : undefined);
+  creatives.forEach((creative) => {
+    const creativeKey = `${creative.id}.creative`;
+    KeyValueStore.setValue(creativeKey, JSON.stringify(creative));
+  });
+
   // wait for the search results to appear.
   await page.waitForSelector('creative-grid', { timeout: 5 * 1000 }); // 5s
   await page.waitForSelector('creative-preview > a', { timeout: 5 * 1000 }); // 5s
@@ -186,15 +206,15 @@ router.addHandler(HandlerLabel.SEARCH_PAGE, async ({ page, crawler, log }) => {
       await link.scrollIntoViewIfNeeded();
 
       // wait loading-pulse disappear
-      await link.locator('img').waitFor({ state: 'visible', timeout: 20 * 1000 })
+      await link.locator('img').waitFor({ state: 'visible', timeout: 20 * 1000 }) // 20s
       const img = link.locator('img').first();
       const src = await img.getAttribute('src');
       const imageKey = `${creativeCode}.image`;
       await KeyValueStore.setValue(imageKey, src);
     } catch (error) {
+      console.error(error);
       log.warning(`Error while getting image for ${creativeCode}`);
     } finally {
-      log.info(`Added request for ${creativeCode}`);
       if (isAdvPage) {
         const domainKey = `${creativeCode}.domain`;
         await KeyValueStore.setValue(domainKey, searchTerm);
@@ -262,7 +282,6 @@ router.addDefaultHandler(async ({ page, crawler, log }) => {
     } catch (error) {
       log.warning(`Error while getting image for ${creativeCode}`);
     } finally {
-      log.info(`Added request for ${creativeCode}`);
       const domainKey = `${creativeCode}.domain`;
       await KeyValueStore.setValue(domainKey, domain);
 

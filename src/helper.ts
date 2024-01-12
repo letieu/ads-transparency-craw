@@ -1,5 +1,5 @@
 import { ElementHandle, Frame, Page } from "playwright";
-import { AdFormat, AdMedia, CreativeVariant } from "./router.js";
+import { AdFormat, AdMedia, Creative, CreativeVariant } from "./router.js";
 import { log } from "crawlee";
 
 const advertiserRegex = /advertiser\/([A-Z0-9]+)/;
@@ -231,4 +231,52 @@ export async function getVariantFromElement(el: ElementHandle): Promise<Creative
 function isYoutubeFrame(frame: Frame) {
   const url = frame.url();
   return url.includes('youtube.com/embed');
+}
+
+export function extractCreativesFromApiRespons(data: any, domain?: string): Creative[] {
+  const extractedData = data['1'].map((item: any) => ({
+    advertiserId: item['1'],
+    creativeId: item['2'],
+    firstShow: new Date(item['6']['1'] * 1000),
+    lastShow: new Date(item['7']['1'] * 1000),
+    image: (item['3']?.['3']?.['2'] ?? '')?.match(/src="([^"]*)"/)?.[1],
+    advertiserName: item['12'],
+    format: item['4'], // 1: text, 2: image, 3: video
+  }));
+
+  const creatives = extractedData.map((item: any) => {
+    const link = `https://adstransparency.google.com/advertiser/${item.advertiserId}/creative/${item.creativeId}`;
+
+    const creative: Creative = {
+      previewImage: item.image,
+      id: item.creativeId,
+      link,
+      format: creativeFromNumber(item.format),
+      lastShow: item.lastShow,
+      firstShow: item.firstShow,
+      variants: [],
+      regions: [],
+      domain: domain || '',
+      advertiser: {
+        id: item.advertiserId,
+        name: item.advertiserName,
+      },
+    };
+    return creative;
+  });
+
+  return creatives;
+}
+
+function creativeFromNumber(format: number): AdFormat {
+  switch (format) {
+    case 1:
+      return AdFormat.TEXT;
+    case 2:
+      return AdFormat.IMAGE;
+    case 3:
+      return AdFormat.VIDEO;
+    default:
+      return AdFormat.TEXT;
+  }
 }

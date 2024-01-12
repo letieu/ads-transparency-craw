@@ -10,6 +10,7 @@ export const dbPool = mysql2.createPool({
   user: process.env.MYSQL_USER,
   database: process.env.MYSQL_DATABASE,
   password: process.env.MYSQL_PASSWORD,
+  dateStrings: true,
   waitForConnections: true,
   connectionLimit: 10,
   maxIdle: 10, // max idle connections, the default value is the same as `connectionLimit`
@@ -33,10 +34,15 @@ export namespace DB {
       const savedDomainId = await insertDomain(creative.domain);
       const savedAdvId = await insertAdvertiser(advertiser);
       const savedCreativeId = await insertCreative(creative, image, savedAdvId, savedDomainId);
-      await insertManyRegions(creative.regions, savedCreativeId);
 
-      await removeAllVariants(savedCreativeId);
-      await insertManyVariant(variants, savedCreativeId);
+      if (creative.regions.length > 0) {
+        await insertManyRegions(creative.regions, savedCreativeId);
+      }
+
+      if (variants.length > 0) {
+        await removeAllVariants(savedCreativeId);
+        await insertManyVariant(variants, savedCreativeId);
+      }
 
       await connection.commit();
       console.log(`Updated creative ${creative.id} with ${variants.length} variants`);
@@ -109,11 +115,26 @@ export namespace DB {
     const creativeId = await searchCreativeId(creative.id);
     if (creativeId) return creativeId;
 
+    console.log("first show", creative.firstShow);
+
     const [res] = await dbPool.query<mysql2.ResultSetHeader>(`
-    INSERT INTO creative (code, last_show, type, advertiser_id, image, domain_id, link)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE last_show = ?, image = ?
-  `, [creative.id, creative.lastShow, creativeFormatToNumber(creative.format), advertiserDbId, image, domainDbId, creative.link, creative.lastShow, image]);
+    INSERT INTO creative (code, first_show, last_show, type, advertiser_id, image, domain_id, link)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE last_show = ?, image = ?, first_show = ?, domain_id = ?
+  `, [
+      creative.id,
+      dateToMysqlFormat(creative.firstShow),
+      dateToMysqlFormat(creative.lastShow),
+      creativeFormatToNumber(creative.format),
+      advertiserDbId,
+      image,
+      domainDbId,
+      creative.link,
+      dateToMysqlFormat(creative.lastShow),
+      image,
+      dateToMysqlFormat(creative.firstShow),
+      domainDbId,
+    ]);
 
     return res.insertId;
   }
@@ -195,7 +216,7 @@ export namespace DB {
   }
 }
 
-function creativeFormatToNumber(format: Creative['format']) {
+export function creativeFormatToNumber(format: Creative['format']) {
   switch (format) {
     case 'TEXT':
       return 1;
@@ -229,4 +250,10 @@ function getPreviewImage(creative: Creative) {
   }
 
   return '';
+}
+
+function dateToMysqlFormat(date?: Date) {
+  if (!date) return null;
+  const copy = new Date(date);
+  return copy.toISOString().slice(0, 19).replace('T', ' ');
 }
