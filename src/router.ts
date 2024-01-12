@@ -147,7 +147,13 @@ router.addHandler(HandlerLabel.SEARCH_PAGE, async ({ page, crawler, log }) => {
   await page.getByLabel('Search by advertiser or').click();
   await page.getByLabel('Search by advertiser or').fill(searchTerm);
 
-  await page.getByRole('option', { name: searchTerm }).locator('div').first().click();
+  const isSearchByDomain = searchTerm.includes('.');
+
+  if (isSearchByDomain) {
+    await page.getByRole('option', { name: searchTerm, exact: true }).locator('div').first().click();
+  } else {
+    await page.getByRole('option', { name: searchTerm }).locator('div').first().click();
+  }
 
   const url = new URL(page.url());
   const path = url.pathname;
