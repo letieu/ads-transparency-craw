@@ -221,7 +221,7 @@ router.addHandler(HandlerLabel.SEARCH_PAGE, async ({ page, crawler, log }) => {
       console.error(error);
       log.warning(`Error while getting image for ${creativeCode}`);
     } finally {
-      if (isAdvPage) {
+      if (!isAdvPage) {
         const domainKey = `${creativeCode}.domain`;
         await KeyValueStore.setValue(domainKey, searchTerm);
       }
