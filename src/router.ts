@@ -111,6 +111,7 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
   if (previewCreative) {
     previewCreative.variants = variants;
     previewCreative.regions = regionsText?.map((text) => text?.trim() ?? '') || [];
+    previewCreative.domain = domain;
     if (previewCreative.previewImage) {
       const previewImage = await KeyValueStore.getValue<string>(`${creativeID}.image`);
       previewCreative.previewImage = previewImage;
