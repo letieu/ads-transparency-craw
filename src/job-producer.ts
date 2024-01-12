@@ -5,6 +5,7 @@ const cronicleHost = process.env.CRONICLE_HOST;
 const cronicleApiKey = process.env.CRONICLE_API_KEY;
 const crawlEventId = process.env.CRONICLE_CRAWL_EVENT_ID;
 const crawlDomainEventId = process.env.CRONICLE_CRAWL_DOMAIN_EVENT_ID;
+const crawlSearchEventId = process.env.CRONICLE_CRAWL_SEARCH_EVENT_ID;
 const selfHost = process.env.SELF_HOST;
 const supportFormats = process.env.SUPPORT_FORMATS?.split(',') || ['TEXT', 'IMAGE', 'VIDEO'];
 
@@ -21,14 +22,21 @@ if (!selfHost) {
   throw new Error('Missing SELF_HOST env');
 }
 
-type JobPayload = {
+type CrawlDomainJobPayload = {
   domain: string;
   format: string;
   webhook?: string;
   webhookMethod?: string;
 };
 
-export async function getCrawlJobPayloads(domainUrls: string[]) {
+type CrawlSearchPayload = {
+  term: string;
+  format: string;
+  webhook?: string;
+  webhookMethod?: string;
+};
+
+export async function getCrawlDomainJobPayloads(domainUrls: string[]) {
   const jobs = [];
 
   for (const url of domainUrls) {
@@ -43,12 +51,14 @@ export async function getCrawlJobPayloads(domainUrls: string[]) {
   return jobs;
 }
 
-export async function createJob(eventId: string, payload: JobPayload) {
+export async function createJob(eventId: string, payload: CrawlDomainJobPayload | CrawlSearchPayload) {
   const url = `${cronicleHost}/api/app/run_event/v1?api_key=${cronicleApiKey}`;
+
+  const jobName = (payload as CrawlDomainJobPayload).domain || (payload as CrawlSearchPayload).term;
 
   const body = {
     id: eventId,
-    name: `${payload.domain}_${payload.format}`,
+    name: jobName,
     params: {
       "method": "POST",
       "url": `${selfHost}/crawl`,
@@ -88,7 +98,7 @@ export async function createJob(eventId: string, payload: JobPayload) {
 export async function createJobsForSavedDomains() {
   const domains = await DB.getAllActiveDomains();
   const urls = domains.map((domain) => domain.domain);
-  const payloads = await getCrawlJobPayloads(urls);
+  const payloads = await getCrawlDomainJobPayloads(urls);
 
   const res = [];
 
@@ -101,13 +111,29 @@ export async function createJobsForSavedDomains() {
 }
 
 export async function createJobsForDomain(domainUrl: string, webhook?: string, webhookMethod?: string) {
-  const payloads = await getCrawlJobPayloads([domainUrl]);
+  const payloads = await getCrawlDomainJobPayloads([domainUrl]);
 
   const res = [];
 
   for await (const payload of payloads) {
     const detail = await createJob(crawlDomainEventId as string, {
       ...payload,
+      webhook,
+      webhookMethod,
+    });
+    res.push(detail);
+  }
+
+  return res;
+}
+
+export async function createJobsForSearch(term: string, webhook?: string, webhookMethod?: string) {
+  const res = [];
+
+  for await (const format of supportFormats) {
+    const detail = await createJob(crawlSearchEventId as string, {
+      format,
+      term,
       webhook,
       webhookMethod,
     });

@@ -7,6 +7,7 @@ import fs from 'fs';
 import "dotenv/config";
 
 const options: PlaywrightCrawlerOptions = {
+  maxRequestRetries: 2,
   requestHandler: router,
   headless: process.env.HEADLESS === 'true',
   launchContext: {

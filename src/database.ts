@@ -83,7 +83,7 @@ export namespace DB {
     return rows[0]?.id;
   }
 
-  async function insertAdvertiser(advertiser: Advertiser): Promise<number> {
+  export async function insertAdvertiser(advertiser: Advertiser): Promise<number> {
     const advertiserId = await searchAdvertiserId(advertiser.id);
     if (advertiserId) return advertiserId;
 

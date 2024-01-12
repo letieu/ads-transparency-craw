@@ -4,6 +4,8 @@ import { DB } from './database.js';
 
 export enum HandlerLabel {
   ADS_DETAIL = 'ADS_DETAIL',
+  ADV_PAGE = 'ADV_PAGE',
+  SEARCH_PAGE = 'SEARCH_PAGE',
 }
 
 export type Creative = {
@@ -122,6 +124,94 @@ router.addHandler(HandlerLabel.ADS_DETAIL, async ({ page, request, log }) => {
 });
 
 // search page
+router.addHandler(HandlerLabel.SEARCH_PAGE, async ({ page, crawler, log }) => {
+  const urlQuery = new URL(page.url()).searchParams;
+  const searchTerm = urlQuery.get('term');
+  if (!searchTerm) {
+    throw new Error('searchTerm not found');
+  }
+
+  await page.getByLabel('Search by advertiser or').click();
+  await page.getByLabel('Search by advertiser or').fill(searchTerm);
+
+  await page.getByRole('option', { name: searchTerm }).locator('div').first().click();
+
+  const url = new URL(page.url());
+  const path = url.pathname;
+  const isAdvPage = path.startsWith('/advertiser/');
+
+  // Save ADV info
+  if (isAdvPage) {
+    await page.waitForSelector('.advertiser-name', { timeout: 5 * 1000 }); // 5s
+
+    const advertiserID = path?.split('/').pop() || '';
+    const advertiserName = await page.$('.advertiser-name').then((el) => el?.textContent()) || '';
+
+    const advertiser: Advertiser = {
+      id: advertiserID,
+      name: advertiserName,
+    };
+
+    await DB.insertAdvertiser(advertiser);
+  }
+
+  // wait for the search results to appear.
+  await page.waitForSelector('creative-grid', { timeout: 5 * 1000 }); // 5s
+  await page.waitForSelector('creative-preview > a', { timeout: 5 * 1000 }); // 5s
+
+  // wait 5s
+  await page.waitForTimeout(3000);
+
+  const loadMore = page.getByRole('button', { name: 'See all ads' });
+  if (await loadMore.isVisible()) {
+    await loadMore.click();
+  }
+
+  // loop through all ads and add request
+  const linksLocator = await page.locator('creative-preview > a').all();
+
+  log.info(`Found ${linksLocator.length} ads`);
+
+  const creativeCodeRegex = /\/creative\/([A-Z0-9]+)/
+
+  await Promise.all(linksLocator.map(async (link) => {
+    const href = await link.getAttribute('href');
+    if (!href) return;
+
+    const creativeCode = creativeCodeRegex.exec(href)?.[1] || '';
+    if (!creativeCode) return;
+
+    try {
+      // scroll down to load images
+      await link.scrollIntoViewIfNeeded();
+
+      // wait loading-pulse disappear
+      await link.locator('img').waitFor({ state: 'visible', timeout: 20 * 1000 })
+      const img = link.locator('img').first();
+      const src = await img.getAttribute('src');
+      const imageKey = `${creativeCode}.image`;
+      await KeyValueStore.setValue(imageKey, src);
+    } catch (error) {
+      log.warning(`Error while getting image for ${creativeCode}`);
+    } finally {
+      log.info(`Added request for ${creativeCode}`);
+      if (isAdvPage) {
+        const domainKey = `${creativeCode}.domain`;
+        await KeyValueStore.setValue(domainKey, searchTerm);
+      }
+
+      const fullUrl = new URL(href, page.url()).toString();
+
+      await crawler.addRequests([{
+        url: fullUrl,
+        label: HandlerLabel.ADS_DETAIL,
+      }])
+    }
+  }));
+});
+
+// @Deprecated
+// Use SEARCH_PAGE instead
 router.addDefaultHandler(async ({ page, crawler, log }) => {
   const urlQuery = new URL(page.url()).searchParams;
   const domain = urlQuery.get('domain');

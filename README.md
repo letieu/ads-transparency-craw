@@ -50,3 +50,5 @@ docker compose -f compose-prod.yaml up -d
 ```
 
 ## TODO:
+1. Crawl by Adv code, name
+2. How to get fist show
