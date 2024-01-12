@@ -5,7 +5,6 @@ const cronicleHost = process.env.CRONICLE_HOST;
 const cronicleApiKey = process.env.CRONICLE_API_KEY;
 const crawlEventId = process.env.CRONICLE_CRAWL_EVENT_ID;
 const crawlDomainEventId = process.env.CRONICLE_CRAWL_DOMAIN_EVENT_ID;
-const crawlSearchEventId = process.env.CRONICLE_CRAWL_SEARCH_EVENT_ID;
 const selfHost = process.env.SELF_HOST;
 const supportFormats = process.env.SUPPORT_FORMATS?.split(',') || ['TEXT', 'IMAGE', 'VIDEO'];
 
@@ -22,13 +21,6 @@ if (!selfHost) {
   throw new Error('Missing SELF_HOST env');
 }
 
-type CrawlDomainJobPayload = {
-  domain: string;
-  format: string;
-  webhook?: string;
-  webhookMethod?: string;
-};
-
 type CrawlSearchPayload = {
   term: string;
   format: string;
@@ -42,7 +34,7 @@ export async function getCrawlDomainJobPayloads(domainUrls: string[]) {
   for (const url of domainUrls) {
     for (const format of supportFormats) {
       jobs.push({
-        domain: url,
+        term: url,
         format,
       });
     }
@@ -51,10 +43,10 @@ export async function getCrawlDomainJobPayloads(domainUrls: string[]) {
   return jobs;
 }
 
-export async function createJob(eventId: string, payload: CrawlDomainJobPayload | CrawlSearchPayload) {
+export async function createJob(eventId: string, payload: CrawlSearchPayload) {
   const url = `${cronicleHost}/api/app/run_event/v1?api_key=${cronicleApiKey}`;
 
-  const jobName = (payload as CrawlDomainJobPayload).domain || (payload as CrawlSearchPayload).term;
+  const jobName = (payload as CrawlSearchPayload).term;
 
   const body = {
     id: eventId,
@@ -110,28 +102,11 @@ export async function createJobsForSavedDomains() {
   return res;
 }
 
-export async function createJobsForDomain(domainUrl: string, webhook?: string, webhookMethod?: string) {
-  const payloads = await getCrawlDomainJobPayloads([domainUrl]);
-
-  const res = [];
-
-  for await (const payload of payloads) {
-    const detail = await createJob(crawlDomainEventId as string, {
-      ...payload,
-      webhook,
-      webhookMethod,
-    });
-    res.push(detail);
-  }
-
-  return res;
-}
-
 export async function createJobsForSearch(term: string, webhook?: string, webhookMethod?: string) {
   const res = [];
 
   for await (const format of supportFormats) {
-    const detail = await createJob(crawlSearchEventId as string, {
+    const detail = await createJob(crawlDomainEventId as string, {
       format,
       term,
       webhook,
