@@ -234,6 +234,9 @@ function isYoutubeFrame(frame: Frame) {
 }
 
 export function extractCreativesFromApiRespons(data: any, domain?: string): Creative[] {
+  if (data?.['1']) {
+    return [];
+  }
   const extractedData = data['1'].map((item: any) => ({
     advertiserId: item['1'],
     creativeId: item['2'],

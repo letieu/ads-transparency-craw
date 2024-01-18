@@ -13,7 +13,5 @@ export async function sendWebhook(webhook: string, data: any, method = 'POST') {
     console.info(await res.text());
     throw new Error('Failed to send webhook')
   }
-
-  const result = await res.json();
-  console.info('sendWebhook result', result);
+  console.info('sendWebhook done');
 }
