@@ -1,6 +1,6 @@
 # Crawl adstransparency.google.com
 
-## Run development server
+## Run local development server
 
 - Setup
 
@@ -43,12 +43,11 @@ docker compose -f compose-prod.yaml up cronicle
 # Init cronicle events
 API_KEY=xxx ./init-cronicle_events.sh
 
-# Update .env file: CRONICLE_CRAWL_EVENT_ID, CRONICLE_API_KEY and database details
+# Update .env file: CRONICLE_CRAWL_EVENT_ID, CRONICLE_CRAWL_DOMAIN_EVENT_ID, CRONICLE_API_KEY and database details
 
 # Start production server
 docker compose -f compose-prod.yaml up -d
-```
 
-## TODO:
-1. Crawl by Adv code, name
-2. How to get fist show
+# Check logs
+docker compose -f compose-prod.yaml logs crawler -f
+```
